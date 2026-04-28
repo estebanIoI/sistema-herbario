@@ -1,0 +1,49 @@
+# Ignorar node_modules ya que se instalarán en el contenedor
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Archivos de desarrollo y configuración local
+.env*
+.git
+.gitignore
+README.md
+.vscode
+.idea
+
+# Archivos de testing
+coverage
+.nyc_output
+test-results
+
+# Logs
+logs
+*.log
+
+# Archivos temporales
+tmp
+temp
+.tmp
+
+# Archivos de Docker
+docker/
+Dockerfile*
+docker-compose*
+
+# Archivos de desarrollo específicos del proyecto
+debug-*.js
+*.zip
+add_reset_columns.sql
+fix-totals.js
+test-payment.js
+
+# OS específicos
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Build artifacts
+dist
+build

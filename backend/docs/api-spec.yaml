@@ -1,0 +1,104 @@
+openapi: 3.0.0
+info:
+  title: Sirius Restaurante API
+  version: 1.0.0
+  description: API para el sistema de gestión de restaurante Sirius
+servers:
+  - url: http://localhost:3001/api
+paths:
+  /auth/login:
+    post:
+      summary: Login de usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login exitoso
+  /tables:
+    get:
+      summary: Listar mesas
+      responses:
+        '200':
+          description: Listado de mesas
+  /orders:
+    post:
+      summary: Crear pedido
+      responses:
+        '201':
+          description: Pedido creado
+  /payments:
+    post:
+      summary: Registrar pago
+      tags: [Payments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orderId:
+                  type: integer
+                method:
+                  type: string
+                amount:
+                  type: number
+                cashierId:
+                  type: integer
+      responses:
+        '201':
+          description: Pago registrado
+    get:
+      summary: Listar pagos
+      tags: [Payments]
+      responses:
+        '200':
+          description: Listado de pagos
+  /reports/daily-sales:
+    get:
+      summary: Reporte diario de ventas
+      tags: [Reports]
+      responses:
+        '200':
+          description: Reporte diario
+components:
+  schemas:
+    Payment:
+      type: object
+      properties:
+        id:
+          type: integer
+        order_id:
+          type: integer
+        cashier_id:
+          type: integer
+        amount:
+          type: number
+        method:
+          type: string
+        status:
+          type: string
+        created_at:
+          type: string
+    Report:
+      type: object
+      properties:
+        totalSales:
+          type: number
+        totalOrders:
+          type: integer
+        paymentMethods:
+          type: object
+        hourlyBreakdown:
+          type: array
+          items:
+            type: object
