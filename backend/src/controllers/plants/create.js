@@ -1,7 +1,18 @@
+// NOTA: Este archivo NO está activo. El servicio plants.create usa
+// src/controllers/plants/plantsController.js#create (ver services/index.js).
 // src/controllers/plants/create.js
 const db = require('../../config/database');
 const logger = require('../../utils/logger');
 const { v4: uuidv4 } = require('uuid');
+
+const createNotification = async (notificationData) => {
+  try {
+    // TODO: Implementar sistema de notificaciones
+    logger.info('Notificación creada:', notificationData.title);
+  } catch (error) {
+    logger.error('Error creando notificación:', error);
+  }
+};
 
 const create = async (data, user) => {
   try {
@@ -186,17 +197,6 @@ const create = async (data, user) => {
   } catch (error) {
     logger.error('Error al crear planta:', error);
     throw error;
-  }
-};
-
-const createNotification = async (notificationData) => {
-  try {
-    // TODO: Implementar sistema de notificaciones
-    // const db = require('../../config/database');
-    // await db.query('INSERT INTO notifications (...) VALUES (...)', [...]);
-    logger.info('Notificación creada:', notificationData.title);
-  } catch (error) {
-    logger.error('Error creando notificación:', error);
   }
 };
 

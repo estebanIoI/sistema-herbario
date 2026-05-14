@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { ArrowRight, Leaf, Search, Database, Star, Globe, X, ChevronLeft, ChevronRight } from "lucide-react"
+import dynamic from "next/dynamic"
+
+const GlobePolaroids = dynamic(() => import("@/components/globe-polaroids"), { ssr: false })
 import { useEffect, useState } from "react"
 import { apiService } from "@/lib/api"
 
@@ -52,7 +55,16 @@ export default function Home() {
     ]).then(([statsRes, cfgRes, plantsRes]) => {
       if (statsRes.success && statsRes.data) setStats(statsRes.data as any)
       if (cfgRes.success && cfgRes.data)     setCfg(cfgRes.data as any)
-      if (plantsRes.success && plantsRes.data) setFeaturedPlants(plantsRes.data as any)
+      if (plantsRes.success && plantsRes.data) {
+        const mapped = (plantsRes.data as any[]).map(p => ({
+          id:             p.id,
+          scientificName: p.nombre      ?? p.scientificName ?? "",
+          commonName:     p.nombreComun ?? p.commonName,
+          family:         p.familia     ?? p.family ?? "",
+          image:          p.imagen      ?? p.image,
+        }))
+        setFeaturedPlants(mapped)
+      }
     }).catch(console.error)
     .finally(() => setLoading(false))
   }, [])
@@ -191,67 +203,100 @@ export default function Home() {
             </div>
           </div>
         ) : slides.length > 0 ? (
-          /* Carrusel con imágenes */
-          <div className="relative w-full">
-            {/* Espaciador invisible — determina la altura del contenedor */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={slides[0].image}
-              alt=""
-              aria-hidden
-              className="w-full h-auto invisible block pointer-events-none select-none"
-            />
-
-            {/* Slides apiladas con crossfade */}
-            {slides.map((slide, i) => {
-              const isActive = i === currentSlide
-              const imgEl = (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={slide.image}
-                  alt={`Imagen ${i + 1}`}
-                  className="w-full h-full object-contain select-none"
-                />
-              )
-              return (
-                <div
-                  key={i}
-                  className={`absolute inset-0 transition-opacity duration-700 ${isActive ? 'opacity-100 z-0' : 'opacity-0 -z-10'}`}
-                >
-                  {slide.url
-                    ? <Link href={slide.url} className="block w-full h-full">{imgEl}</Link>
-                    : imgEl
-                  }
-                </div>
-              )
-            })}
-
-            {/* Gradiente para legibilidad del texto */}
-            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/45 to-transparent pointer-events-none z-10" />
-
-            {/* Texto superpuesto */}
-            <div className="absolute inset-0 flex items-center z-20 pointer-events-none">
-              <div className="container mx-auto px-4 pointer-events-auto">
+          <>
+            {/* ── Mobile: imagen completa + texto debajo ─────────────────── */}
+            <div className="sm:hidden">
+              {/* Imagen con altura natural, sin recorte */}
+              <div className="relative w-full border-b-2 border-green-700 bg-green-950 overflow-hidden">
+                {slides.map((slide, i) => {
+                  const imgEl = (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={slide.image}
+                      alt={`Imagen ${i + 1}`}
+                      className="w-full h-auto object-contain select-none block"
+                    />
+                  )
+                  return (
+                    <div
+                      key={i}
+                      className={`transition-opacity duration-700 ${i === currentSlide ? 'opacity-100 relative' : 'opacity-0 absolute inset-0'}`}
+                    >
+                      {slide.url
+                        ? <Link href={slide.url} className="block w-full">{imgEl}</Link>
+                        : imgEl
+                      }
+                    </div>
+                  )
+                })}
+                {/* Puntos de navegación mobile */}
+                {slides.length > 1 && (
+                  <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-2 z-10">
+                    {slides.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setCurrentSlide(i)}
+                        aria-label={`Imagen ${i + 1}`}
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          i === currentSlide ? 'w-8 bg-white' : 'w-2 bg-white/50'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Texto debajo de la imagen */}
+              <div className="px-4 py-8 bg-gradient-to-b from-green-950 to-green-900">
                 <HeroText />
               </div>
             </div>
 
-            {/* Puntos de navegación */}
-            {slides.length > 1 && (
-              <div className="absolute bottom-5 left-0 right-0 flex justify-center gap-2 z-20 pointer-events-auto">
-                {slides.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setCurrentSlide(i)}
-                    aria-label={`Imagen ${i + 1}`}
-                    className={`h-2 rounded-full transition-all duration-300 ${
-                      i === currentSlide ? 'w-8 bg-white' : 'w-2 bg-white/50 hover:bg-white/75'
-                    }`}
+            {/* ── Desktop: carrusel con overlay ──────────────────────────── */}
+            <div className="hidden sm:block relative w-full h-[75vh] min-h-[500px] max-h-[800px]">
+              {slides.map((slide, i) => {
+                const isActive = i === currentSlide
+                const imgEl = (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={slide.image}
+                    alt={`Imagen ${i + 1}`}
+                    className="w-full h-full object-cover select-none"
                   />
-                ))}
+                )
+                return (
+                  <div
+                    key={i}
+                    className={`absolute inset-0 transition-opacity duration-700 ${isActive ? 'opacity-100 z-0' : 'opacity-0 -z-10'}`}
+                  >
+                    {slide.url
+                      ? <Link href={slide.url} className="block w-full h-full">{imgEl}</Link>
+                      : imgEl
+                    }
+                  </div>
+                )
+              })}
+              <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/45 to-transparent pointer-events-none z-10" />
+              <div className="absolute inset-0 flex items-center z-20 pointer-events-none">
+                <div className="container mx-auto px-4 pointer-events-auto">
+                  <HeroText />
+                </div>
               </div>
-            )}
-          </div>
+              {slides.length > 1 && (
+                <div className="absolute bottom-5 left-0 right-0 flex justify-center gap-2 z-20 pointer-events-auto">
+                  {slides.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setCurrentSlide(i)}
+                      aria-label={`Imagen ${i + 1}`}
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        i === currentSlide ? 'w-8 bg-white' : 'w-2 bg-white/50 hover:bg-white/75'
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
         ) : (
           /* Sin imágenes — hero de gradiente limpio */
           <div className="min-h-[70vh] flex items-center">
@@ -262,10 +307,12 @@ export default function Home() {
         )}
       </section>
 
-      {/* ── Hero 2: Publicaciones y Servicios ──────────────────────────────── */}
-      {showHero2 && hero2Items.length > 0 && (
-        <section className="py-16 bg-muted/30">
+      {/* ── Hero 2: Publicaciones / Servicios + Globo ──────────────────────── */}
+      {showHero2 && (
+        <section className="py-16 bg-muted/30 overflow-hidden">
           <div className="container mx-auto px-4">
+
+            {/* Encabezado centrado */}
             <div className="text-center mb-10">
               <h2 className="text-3xl font-bold tracking-tight">{hero2Title}</h2>
               {hero2Sub && (
@@ -273,88 +320,104 @@ export default function Home() {
               )}
             </div>
 
-            <div className="relative max-w-3xl mx-auto">
-              {/* Slide activo */}
-              <div className="relative overflow-hidden rounded-xl shadow-lg">
-                {hero2Items.map((item, i) => (
-                  <div
-                    key={i}
-                    className={`transition-opacity duration-500 ${
-                      i === currentHero2 ? 'opacity-100 relative' : 'opacity-0 absolute inset-0'
-                    }`}
-                  >
-                    <Card className="overflow-hidden border-0">
-                      {item.image && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={item.image}
-                          alt={item.title}
-                          className="w-full h-64 object-cover"
-                        />
-                      )}
-                      <CardContent className={`p-6 space-y-3 ${!item.image ? 'pt-8' : ''}`}>
-                        {item.badge && (
-                          <Badge className="bg-green-600 hover:bg-green-600 text-white">
-                            {item.badge}
-                          </Badge>
-                        )}
-                        <h3 className="text-xl font-bold">{item.title}</h3>
-                        {item.desc && (
-                          <p className="text-muted-foreground leading-relaxed">{item.desc}</p>
-                        )}
-                        {item.url && (
-                          <Button
-                            asChild
-                            variant="outline"
-                            size="sm"
-                            className="mt-2 border-green-600 text-green-700 hover:bg-green-50"
-                          >
-                            <Link href={item.url}>
-                              Ver más <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                            </Link>
-                          </Button>
-                        )}
-                      </CardContent>
-                    </Card>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+
+              {/* ── Columna izquierda: carrusel de publicaciones / servicios ── */}
+              {hero2Items.length > 0 && (
+                <div className="relative">
+                  <div className="relative overflow-hidden rounded-xl shadow-lg">
+                    {hero2Items.map((item, i) => (
+                      <div
+                        key={i}
+                        className={`transition-opacity duration-500 ${
+                          i === currentHero2 ? 'opacity-100 relative' : 'opacity-0 absolute inset-0'
+                        }`}
+                      >
+                        <Card className="overflow-hidden border-0">
+                          {item.image && (
+                            <div className="w-full border-b border-border bg-muted">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={item.image}
+                                alt={item.title}
+                                className="w-full h-56 object-contain"
+                              />
+                            </div>
+                          )}
+                          <CardContent className={`p-6 space-y-3 ${!item.image ? 'pt-8' : ''}`}>
+                            {item.badge && (
+                              <Badge className="bg-green-600 hover:bg-green-600 text-white">
+                                {item.badge}
+                              </Badge>
+                            )}
+                            <h3 className="text-xl font-bold">{item.title}</h3>
+                            {item.desc && (
+                              <p className="text-muted-foreground leading-relaxed">{item.desc}</p>
+                            )}
+                            {item.url && (
+                              <Button
+                                asChild variant="outline" size="sm"
+                                className="mt-2 border-green-600 text-green-700 hover:bg-green-50"
+                              >
+                                <Link href={item.url}>
+                                  Ver más <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                                </Link>
+                              </Button>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
 
-              {/* Flechas de navegación */}
-              {hero2Items.length > 1 && (
-                <>
-                  <button
-                    onClick={() => setCurrentHero2(prev => (prev - 1 + hero2Items.length) % hero2Items.length)}
-                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-5 h-10 w-10 rounded-full bg-background border shadow-md flex items-center justify-center hover:bg-muted transition-colors z-10"
-                    aria-label="Anterior"
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </button>
-                  <button
-                    onClick={() => setCurrentHero2(prev => (prev + 1) % hero2Items.length)}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-5 h-10 w-10 rounded-full bg-background border shadow-md flex items-center justify-center hover:bg-muted transition-colors z-10"
-                    aria-label="Siguiente"
-                  >
-                    <ChevronRight className="h-5 w-5" />
-                  </button>
-                </>
-              )}
+                  {/* Flechas */}
+                  {hero2Items.length > 1 && (
+                    <>
+                      <button
+                        onClick={() => setCurrentHero2(prev => (prev - 1 + hero2Items.length) % hero2Items.length)}
+                        className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-5 h-10 w-10 rounded-full bg-background border shadow-md flex items-center justify-center hover:bg-muted transition-colors z-10"
+                        aria-label="Anterior"
+                      >
+                        <ChevronLeft className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={() => setCurrentHero2(prev => (prev + 1) % hero2Items.length)}
+                        className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-5 h-10 w-10 rounded-full bg-background border shadow-md flex items-center justify-center hover:bg-muted transition-colors z-10"
+                        aria-label="Siguiente"
+                      >
+                        <ChevronRight className="h-5 w-5" />
+                      </button>
+                    </>
+                  )}
 
-              {/* Puntos de navegación */}
-              {hero2Items.length > 1 && (
-                <div className="flex justify-center gap-2 mt-5">
-                  {hero2Items.map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setCurrentHero2(i)}
-                      aria-label={`Item ${i + 1}`}
-                      className={`h-2 rounded-full transition-all duration-300 ${
-                        i === currentHero2 ? 'w-6 bg-green-600' : 'w-2 bg-gray-300 hover:bg-gray-400'
-                      }`}
-                    />
-                  ))}
+                  {/* Puntos */}
+                  {hero2Items.length > 1 && (
+                    <div className="flex justify-center gap-2 mt-5">
+                      {hero2Items.map((_, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setCurrentHero2(i)}
+                          aria-label={`Item ${i + 1}`}
+                          className={`h-2 rounded-full transition-all duration-300 ${
+                            i === currentHero2 ? 'w-6 bg-green-600' : 'w-2 bg-gray-300 hover:bg-gray-400'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
+
+              {/* ── Columna derecha: globo con polaroids de plantas ── */}
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-full max-w-[480px]">
+                  <GlobePolaroids plants={featuredPlants} speed={0.003} />
+                </div>
+                <p className="text-sm text-muted-foreground text-center max-w-xs">
+                  Arrastra el globo para explorar las regiones de recolección
+                </p>
+              </div>
+
             </div>
           </div>
         </section>
@@ -455,12 +518,12 @@ export default function Home() {
                         href={`/plantas/${plant.id}`}
                         className="group overflow-hidden rounded-lg border bg-card shadow-sm transition-all hover:shadow-md"
                       >
-                        <div className="h-48 w-full overflow-hidden">
+                        <div className="h-48 w-full overflow-hidden border-b border-border bg-muted flex items-center justify-center">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={plant.image || `/placeholder.svg?height=300&width=400&text=${encodeURIComponent(plant.scientificName ?? "Planta")}`}
                             alt={plant.scientificName ?? "Planta"}
-                            className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                            className="w-full h-full object-contain transition-transform group-hover:scale-105"
                           />
                         </div>
                         <div className="p-4">
@@ -472,9 +535,9 @@ export default function Home() {
                     ))
                   : [1, 2, 3].map(i => (
                       <div key={i} className="overflow-hidden rounded-lg border bg-card shadow-sm">
-                        <div className="h-48">
+                        <div className="h-48 border-b border-border bg-muted flex items-center justify-center">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={`/placeholder.svg?height=300&width=400&text=Planta+${i}`} alt={`Planta ${i}`} className="w-full h-full object-cover" />
+                          <img src={`/placeholder.svg?height=300&width=400&text=Planta+${i}`} alt={`Planta ${i}`} className="w-full h-full object-contain" />
                         </div>
                         <div className="p-4">
                           <h3 className="font-bold">Planta {i}</h3>

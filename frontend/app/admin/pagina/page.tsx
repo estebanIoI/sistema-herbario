@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Save, Monitor, Megaphone, Layout, Star, Info, Globe, Cloud, CheckCircle2, XCircle, Search, BookOpen, ImageIcon, PanelBottom, Leaf, Link2, Layers, Image as ImageLucide } from "lucide-react"
+import { Loader2, Save, Monitor, Megaphone, Layout, Star, Info, Globe, Cloud, CheckCircle2, XCircle, Search, BookOpen, ImageIcon, PanelBottom, Leaf, Link2, Layers, Image as ImageLucide, UploadCloud, X } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import { apiService } from "@/lib/api"
@@ -34,6 +34,37 @@ export default function PaginaAdminPage() {
   const [loadingPlants, setLoadingPlants] = useState(false)
   const [plantSearch, setPlantSearch] = useState("")
   const [togglingId, setTogglingId] = useState<number | null>(null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const logoFileRef = useRef<HTMLInputElement>(null)
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/svg+xml', 'image/gif']
+    if (!validTypes.includes(file.type)) {
+      toast({ title: "Tipo de archivo no válido", description: "Usa JPG, PNG, WebP, SVG o GIF", variant: "destructive" })
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "Archivo muy grande", description: "El logo no debe superar los 5 MB", variant: "destructive" })
+      return
+    }
+    setUploadingLogo(true)
+    try {
+      const res = await apiService.uploadImage(file, { entityType: 'logo', isTemporary: false })
+      if (res.success && res.data?.url) {
+        set("logo_image_url", res.data.url)
+        toast({ title: "Logo subido", description: "La imagen se subió a Cloudinary correctamente." })
+      } else {
+        throw new Error(res.error ?? "Error al subir")
+      }
+    } catch (err: any) {
+      toast({ title: "Error al subir el logo", description: err.message, variant: "destructive" })
+    } finally {
+      setUploadingLogo(false)
+      if (logoFileRef.current) logoFileRef.current.value = ""
+    }
+  }
 
   useEffect(() => {
     apiService.getAllSettings()
@@ -195,6 +226,7 @@ export default function PaginaAdminPage() {
           <TabsTrigger value="logo" className="flex items-center gap-1"><ImageIcon className="h-4 w-4" />Logo</TabsTrigger>
           <TabsTrigger value="footer" className="flex items-center gap-1"><PanelBottom className="h-4 w-4" />Pie de página</TabsTrigger>
           <TabsTrigger value="acerca" className="flex items-center gap-1"><BookOpen className="h-4 w-4" />Acerca de</TabsTrigger>
+          <TabsTrigger value="login" className="flex items-center gap-1"><ImageLucide className="h-4 w-4" />Login</TabsTrigger>
         </TabsList>
 
         {/* ── GENERAL ──────────────────────────────────────────────────────── */}
@@ -226,8 +258,102 @@ export default function PaginaAdminPage() {
               <Field label="Teléfono" id="institution_phone">
                 <Input id="institution_phone" value={str(settings.institution_phone)} onChange={(e) => set("institution_phone", e.target.value)} />
               </Field>
+
+              {/* Logo del header */}
+              <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
+                <p className="text-sm font-semibold flex items-center gap-2">
+                  <Leaf className="h-4 w-4 text-green-600" />
+                  Logo del encabezado
+                </p>
+
+                {/* Vista previa grande — solo el logo */}
+                <div className="flex justify-center">
+                  <div className="relative h-32 w-32 rounded-xl border-2 border-dashed border-border bg-background flex items-center justify-center overflow-hidden">
+                    {settings.logo_image_url ? (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={str(settings.logo_image_url)}
+                          alt="Logo"
+                          className="h-full w-full object-contain p-3"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => set("logo_image_url", "")}
+                          className="absolute top-1 right-1 rounded-full bg-background/80 p-0.5 text-muted-foreground hover:text-destructive transition-colors"
+                          title="Quitar logo"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </>
+                    ) : (
+                      <Leaf className="h-14 w-14 text-green-600 opacity-50" />
+                    )}
+                  </div>
+                </div>
+                {!settings.logo_image_url && (
+                  <p className="text-xs text-center text-muted-foreground -mt-2">Sin logo — se mostrará la hojita verde</p>
+                )}
+
+                {/* Subir imagen a Cloudinary */}
+                <div className="space-y-1.5">
+                  <Label>Subir imagen del logo</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1"
+                      disabled={uploadingLogo}
+                      onClick={() => logoFileRef.current?.click()}
+                    >
+                      {uploadingLogo
+                        ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Subiendo…</>
+                        : <><UploadCloud className="h-4 w-4 mr-2" />Subir a Cloudinary</>
+                      }
+                    </Button>
+                    <input
+                      ref={logoFileRef}
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/webp,image/svg+xml,image/gif"
+                      className="hidden"
+                      onChange={handleLogoUpload}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">JPG, PNG, WebP, SVG o GIF · máx. 5 MB</p>
+                </div>
+
+                {/* URL manual */}
+                <Field
+                  label="O pega la URL del logo"
+                  id="logo_image_url_general"
+                  hint="También puedes pegar directamente una URL externa"
+                >
+                  <Input
+                    id="logo_image_url_general"
+                    placeholder="https://... o /logo.png"
+                    value={str(settings.logo_image_url)}
+                    onChange={(e) => set("logo_image_url", e.target.value)}
+                  />
+                </Field>
+
+                {/* Texto editable del logo */}
+                <Field
+                  label="Texto junto al logo"
+                  id="logo_text_general"
+                  hint="Texto que aparece al lado del logo en el header. Vacío = sin texto"
+                >
+                  <Input
+                    id="logo_text_general"
+                    placeholder="Ej: Herbario Digital"
+                    value={str(settings.logo_text)}
+                    onChange={(e) => set("logo_text", e.target.value)}
+                  />
+                </Field>
+              </div>
+
               <div className="pt-2">
-                <SaveBtn sectionId="general" keys={["site_name","site_description","institution_name","herbarium_code","contact_email","institution_address","institution_phone"]} />
+                <SaveBtn sectionId="general" keys={["site_name","site_description","institution_name","herbarium_code","contact_email","institution_address","institution_phone","logo_image_url","logo_text"]} />
               </div>
             </CardContent>
           </Card>
@@ -1283,6 +1409,85 @@ export default function PaginaAdminPage() {
             </Card>
 
           </div>
+        </TabsContent>
+
+        {/* ── LOGIN ────────────────────────────────────────────────────────── */}
+        <TabsContent value="login">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ImageLucide className="h-5 w-5" />
+                Página de inicio de sesión
+              </CardTitle>
+              <CardDescription>
+                Imagen de fondo del panel izquierdo y textos que se muestran en la pantalla de login
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <Field
+                label="URL de imagen de fondo"
+                id="login_bg_image"
+                hint="Imagen botánica que aparece en el panel izquierdo del login en escritorio"
+              >
+                <Input
+                  id="login_bg_image"
+                  placeholder="https://..."
+                  value={str(settings.login_bg_image)}
+                  onChange={(e) => set("login_bg_image", e.target.value)}
+                />
+              </Field>
+
+              {settings.login_bg_image && (
+                <div className="rounded-lg border overflow-hidden bg-muted/30">
+                  <p className="text-xs text-muted-foreground px-3 pt-2">Vista previa:</p>
+                  <div className="relative h-40 m-3 rounded overflow-hidden bg-green-950">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={str(settings.login_bg_image)}
+                      alt="Vista previa login"
+                      className="w-full h-full object-cover opacity-40"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                    />
+                    <div className="absolute inset-0 flex items-end p-3">
+                      <span className="text-white text-sm font-light opacity-80">
+                        {str(settings.login_tagline) || "Descubre la flora de la Amazonia"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <Field
+                label="Tagline del panel izquierdo"
+                id="login_tagline"
+                hint="Texto principal que aparece sobre la imagen"
+              >
+                <Input
+                  id="login_tagline"
+                  placeholder="Descubre la flora de la Amazonia"
+                  value={str(settings.login_tagline)}
+                  onChange={(e) => set("login_tagline", e.target.value)}
+                />
+              </Field>
+
+              <Field
+                label="Atribución de la imagen"
+                id="login_bg_attribution"
+                hint="Crédito fotográfico que se muestra en la esquina inferior izquierda"
+              >
+                <Input
+                  id="login_bg_attribution"
+                  placeholder="Ej: IERNA SINCHI"
+                  value={str(settings.login_bg_attribution)}
+                  onChange={(e) => set("login_bg_attribution", e.target.value)}
+                />
+              </Field>
+
+              <div className="pt-2">
+                <SaveBtn sectionId="login" keys={["login_bg_image", "login_bg_attribution", "login_tagline"]} />
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

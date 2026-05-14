@@ -25,10 +25,12 @@ const getAll = async (data) => {
     let whereConditions = [];
     let queryParams = [];
 
-    // Filtrar por status solo si se especifica
     if (status && status !== 'all') {
       whereConditions.push("status = ?");
       queryParams.push(status);
+    } else {
+      // "all" muestra todos excepto eliminados
+      whereConditions.push("status != 'deleted'");
     }
 
     if (search) {

@@ -17,6 +17,11 @@ export interface PlantMapData {
   habit?: string
   image?: string
   status?: string
+  genus?: string
+  collector_number?: string
+  author?: string
+  conservation_status?: string
+  has_uses?: number
 }
 
 export const FAMILY_PALETTE = [

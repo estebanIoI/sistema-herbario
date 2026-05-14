@@ -438,44 +438,76 @@ const create = async (req, res) => {
       user?.id
     ];
 
+    // Antes de insertar: verificar unicidad de herbarium_number con manejo de legacy soft-delete
+    if (herbarium_number) {
+      const [conflict] = await db.query(
+        'SELECT id, status FROM plants WHERE herbarium_number = ?',
+        [herbarium_number]
+      );
+      if (conflict.length > 0) {
+        if (conflict[0].status === 'deleted') {
+          // Registro de borrado antiguo (soft-delete) → purgar para liberar el número
+          await db.query('DELETE FROM plant_images WHERE plant_id = ?', [conflict[0].id]);
+          await db.query('DELETE FROM plants WHERE id = ?', [conflict[0].id]);
+          logger.info(`Purgado registro soft-deleted con herbarium_number=${herbarium_number} (ID ${conflict[0].id})`);
+        } else {
+          const err = new Error('El número de catálogo ya está en uso por otro espécimen activo. Cada especímen debe tener un número único en la colección (estándar Darwin Core / Index Herbariorum).');
+          err.statusCode = 409;
+          throw err;
+        }
+      }
+    }
+
     const [result] = await db.query(insertQuery, values);
     const plantId = result.insertId;
 
     // Procesar imágenes si se proporcionan
-    if (plantData.imageUrls && Array.isArray(plantData.imageUrls) && plantData.imageUrls.length > 0) {
-      logger.info(`Guardando ${plantData.imageUrls.length} imagen(es) para planta ${plantId}`);
-      const imageValues = plantData.imageUrls.map((url, index) => [
-        plantId, 
-        url, 
-        url, // thumbnail_url (por ahora igual a la url)
-        index === 0 // is_main (la primera es la principal)
+    // Preferir el array `images` que trae url + thumbnailUrl reales de Cloudinary
+    const imageSources = plantData.images && Array.isArray(plantData.images) && plantData.images.length > 0
+      ? plantData.images
+      : (plantData.imageUrls && Array.isArray(plantData.imageUrls) && plantData.imageUrls.length > 0)
+        ? plantData.imageUrls.map(url => ({ url, thumbnailUrl: url }))
+        : [];
+
+    if (imageSources.length > 0) {
+      logger.info(`Guardando ${imageSources.length} imagen(es) para planta ${plantId}`);
+      const imageValues = imageSources.map((img, index) => [
+        plantId,
+        img.url,
+        img.thumbnailUrl || img.url,
+        index === 0
       ]);
 
-      if (imageValues.length > 0) {
-        const imageQuery = `
-          INSERT INTO plant_images (plant_id, image_url, thumbnail_url, is_main)
-          VALUES ?
-        `;
-        await db.query(imageQuery, [imageValues]);
+      const imageQuery = `
+        INSERT INTO plant_images (plant_id, image_url, thumbnail_url, is_main)
+        VALUES ?
+      `;
+      await db.query(imageQuery, [imageValues]);
+
+      // Marcar los uploads como permanentes y vincularlos a la planta
+      if (plantData.imageIds && Array.isArray(plantData.imageIds) && plantData.imageIds.length > 0) {
+        await db.query(
+          'UPDATE uploads SET is_temporary = false, entity_type = ? WHERE id IN (?)',
+          ['plant', plantData.imageIds]
+        );
       }
     }
 
     logger.info(`Nueva planta creada: ID ${plantId} - ${tempScientificName}`);
 
-    const responseData = {
-      success: true,
-      data: {
-        id: plantId,
-        scientific_name: tempScientificName,
-        status,
-        message: 'Planta creada exitosamente'
-      }
+    const plantResult = {
+      id: plantId,
+      scientific_name: tempScientificName,
+      status,
+      message: 'Planta creada exitosamente'
     };
 
     if (isExpress) {
-      return res.status(201).json(responseData);
+      return res.status(201).json({ success: true, data: plantResult });
     } else {
-      return responseData;
+      // En service gateway el serviceController ya envuelve en { success, data }
+      // devolver solo el objeto de datos para evitar doble anidado
+      return plantResult;
     }
 
   } catch (error) {
@@ -484,16 +516,14 @@ const create = async (req, res) => {
     // Detectar el modo nuevamente para el error handling
     const isExpressMode = req && req.body && res && typeof res.status === 'function';
 
-    // Manejar errores específicos de MySQL
-    let errorMessage = 'Error al crear planta';
-    let statusCode = 500;
+    // Manejar errores específicos de MySQL o errores manuales con statusCode
+    let errorMessage = error.message || 'Error al crear planta';
+    let statusCode = error.statusCode || 500;
 
     if (error.code === 'ER_DUP_ENTRY') {
-      statusCode = 409; // Conflict
+      statusCode = 409;
       if (error.message.includes('herbarium_number')) {
-        errorMessage = 'El número de herbario ya está registrado. Por favor, use un número diferente.';
-      } else if (error.message.includes('scientific_name')) {
-        errorMessage = 'Ya existe una planta con este nombre científico.';
+        errorMessage = 'El número de catálogo ya está registrado. Usa uno diferente o edita el espécimen existente.';
       } else {
         errorMessage = 'Ya existe un registro con estos datos. Verifique que no haya duplicados.';
       }
@@ -570,15 +600,52 @@ const update = async (firstArg, secondArg) => {
     // Campos que no deben actualizarse directamente en la tabla plants
     const excludeFields = ['imageUrls', 'imageIds', 'images', 'localImages', 'existingImages'];
 
+    // Valores permitidos para columnas ENUM — un valor fuera del set se convierte en null
+    const ENUM_ALLOWED = {
+      status: ['draft', 'published', 'review', 'deleted'],
+      taxonomic_status: ['accepted', 'synonym', 'unresolved'],
+      type_status: ['holotype', 'isotype', 'paratype', 'lectotype', 'neotype', 'epitype', 'none'],
+      conservation_status: ['LC', 'NT', 'VU', 'EN', 'CR', 'EW', 'EX', 'DD', 'NE'],
+      abundance: ['rare', 'occasional', 'frequent', 'abundant'],
+    };
+
+    // Columnas válidas de la tabla plants (whitelist contra columnas inexistentes)
+    const VALID_COLUMNS = new Set([
+      'scientific_name','common_name','vernacular_name','family','genus','species','author',
+      'infraspecific_epithet','taxonomic_status','taxon_rank','taxon_remarks','kingdom','phylum',
+      'class_name','order_name','subfamily','subgenus','herbarium_number','determination_date',
+      'determined_by','identified_by','date_identified','type_status','institution_code',
+      'institution_id','collection_code','collection_id','geodetic_datum','occurrence_id',
+      'basis_of_record','record_type','collector_name','collector_number','additional_collectors',
+      'collection_date','field_number','field_notes','organism_quantity','organism_quantity_type',
+      'life_stage','preparation','disposition','sampling_protocol','country','department','county',
+      'municipality','specific_location','latitude','longitude','latitude_sexagesimal',
+      'longitude_sexagesimal','altitude','coordinate_uncertainty','georeferenced_by','habitat',
+      'substrate','associated_species','abundance','reproductive_state','habit','height_min',
+      'height_max','description','distinguishing_features','flower_color','fruit_color',
+      'leaf_characteristics','uses','care_instructions','conservation_status','status','featured',
+      'observations','notes','additional_remarks','updated_by','date_updated','project','photo_record',
+    ]);
+
+    // Columnas NOT NULL: nunca se actualizan a null (se saltan si el valor es null)
+    const NOT_NULL_COLUMNS = new Set(['scientific_name']);
+
     // Construir query de actualización dinámicamente
     const updateFields = [];
     const updateValues = [];
 
     Object.keys(updateData).forEach(key => {
-      if (updateData[key] !== undefined && !excludeFields.includes(key)) {
-        updateFields.push(`${key} = ?`);
-        updateValues.push(updateData[key]);
+      if (updateData[key] === undefined || excludeFields.includes(key)) return;
+      if (!VALID_COLUMNS.has(key)) return;
+      let value = updateData[key];
+      // Nunca poner NULL en columnas NOT NULL (protege scientific_name entre secciones)
+      if (value === null && NOT_NULL_COLUMNS.has(key)) return;
+      // Convertir a null si el valor no está en el ENUM permitido
+      if (ENUM_ALLOWED[key] && value !== null && !ENUM_ALLOWED[key].includes(value)) {
+        value = null;
       }
+      updateFields.push(`${key} = ?`);
+      updateValues.push(value);
     });
 
     if (updateFields.length === 0) {
@@ -605,12 +672,18 @@ const update = async (firstArg, secondArg) => {
     await db.query(updateQuery, updateValues);
 
     // Procesar imágenes si se proporcionan
-    if (updateData.imageUrls && Array.isArray(updateData.imageUrls) && updateData.imageUrls.length > 0) {
-      // Primero, eliminar imágenes existentes que no están en la nueva lista
+    // Preferir images[] (trae thumbnailUrl real de Cloudinary) sobre imageUrls[]
+    const incomingImages = updateData.images && Array.isArray(updateData.images) && updateData.images.length > 0
+      ? updateData.images
+      : (updateData.imageUrls && Array.isArray(updateData.imageUrls) && updateData.imageUrls.length > 0)
+        ? updateData.imageUrls.map(url => ({ url, thumbnailUrl: url }))
+        : null;
+
+    if (incomingImages) {
       const existingImagesQuery = 'SELECT id, image_url FROM plant_images WHERE plant_id = ?';
       const [existingImages] = await db.query(existingImagesQuery, [id]);
 
-      const newImageUrls = updateData.imageUrls;
+      const newImageUrls = incomingImages.map(img => img.url);
       const imagesToDelete = existingImages.filter(img => !newImageUrls.includes(img.image_url));
 
       if (imagesToDelete.length > 0) {
@@ -618,40 +691,36 @@ const update = async (firstArg, secondArg) => {
         await db.query('DELETE FROM plant_images WHERE id IN (?)', [deleteIds]);
       }
 
-      // Agregar nuevas imágenes que no existen
       const existingUrls = existingImages.map(img => img.image_url);
-      const imagesToAdd = newImageUrls.filter(url => !existingUrls.includes(url));
+      const imagesToAdd = incomingImages.filter(img => !existingUrls.includes(img.url));
 
       if (imagesToAdd.length > 0) {
-        const imageValues = imagesToAdd.map((url, index) => [
+        const imageValues = imagesToAdd.map((img, index) => [
           id,
-          url,
-          url, // thumbnail_url
-          existingImages.length === 0 && index === 0 // is_main solo si no hay otras imágenes y es la primera
+          img.url,
+          img.thumbnailUrl || img.url,
+          existingImages.length === 0 && index === 0
         ]);
+        await db.query('INSERT INTO plant_images (plant_id, image_url, thumbnail_url, is_main) VALUES ?', [imageValues]);
+      }
 
-        const imageQuery = `
-          INSERT INTO plant_images (plant_id, image_url, thumbnail_url, is_main)
-          VALUES ?
-        `;
-        await db.query(imageQuery, [imageValues]);
+      // Marcar uploads como permanentes
+      if (updateData.imageIds && Array.isArray(updateData.imageIds) && updateData.imageIds.length > 0) {
+        await db.query(
+          'UPDATE uploads SET is_temporary = false, entity_type = ? WHERE id IN (?)',
+          ['plant', updateData.imageIds]
+        );
       }
     }
 
     logger.info(`Planta actualizada: ID ${id}`);
 
-    const result = {
-      success: true,
-      data: {
-        id,
-        message: 'Planta actualizada exitosamente'
-      }
-    };
+    const updateResult = { id, message: 'Planta actualizada exitosamente' };
 
     if (isExpress) {
-      secondArg.json(result);
+      secondArg.json({ success: true, data: updateResult });
     } else {
-      return result;
+      return updateResult;
     }
 
   } catch (error) {
@@ -670,7 +739,7 @@ const update = async (firstArg, secondArg) => {
 };
 
 /**
- * Eliminar planta (soft delete)
+ * Eliminar planta (hard delete)
  * Soporta dos firmas:
  * 1) Gateway de servicios: deletePlant(data, user)
  * 2) Ruta Express clásica: deletePlant(req, res)
@@ -699,10 +768,11 @@ const deletePlant = async (firstArg, secondArg) => {
       throw new Error('Planta no encontrada');
     }
 
-    // Soft delete
-    await db.query('UPDATE plants SET status = ?, deleted_at = NOW() WHERE id = ?', ['deleted', id]);
+    // Hard delete: eliminar imágenes y luego el registro
+    await db.query('DELETE FROM plant_images WHERE plant_id = ?', [id]);
+    await db.query('DELETE FROM plants WHERE id = ?', [id]);
 
-    logger.info(`Planta eliminada: ID ${id} - ${existing[0].scientific_name}`);
+    logger.info(`Planta eliminada permanentemente: ID ${id} - ${existing[0].scientific_name}`);
 
     const result = { id, message: 'Planta eliminada exitosamente' };
 
@@ -1036,12 +1106,27 @@ const importData = async (data, user) => {
   return { imported: imported.length, errors };
 };
 
+/**
+ * Purgar todos los registros soft-deleted (status = 'deleted') que quedaron
+ * de versiones anteriores del sistema. Elimina también sus imágenes.
+ */
+const purgeDeleted = async (data, user) => {
+  const [rows] = await db.query('SELECT id FROM plants WHERE status = ?', ['deleted']);
+  if (rows.length === 0) return { purged: 0, message: 'No hay registros eliminados que limpiar.' };
+  const ids = rows.map(r => r.id);
+  await db.query('DELETE FROM plant_images WHERE plant_id IN (?)', [ids]);
+  await db.query('DELETE FROM plants WHERE id IN (?)', [ids]);
+  logger.info(`Purgados ${ids.length} registros soft-deleted por usuario ID ${user?.id}`);
+  return { purged: ids.length, message: `${ids.length} registro(s) eliminado(s) permanentemente.` };
+};
+
 module.exports = {
   getAll,
   getById,
   create,
   update,
   delete: deletePlant,
+  purgeDeleted,
   importData,
   getFeaturedPlants,
   getFeaturedPlantsData,
@@ -1057,7 +1142,16 @@ module.exports = {
   searchByCollector: advancedSearch,
   getRandomPlants: getFeaturedPlants,
   getRecent: getAll,
-  getMostViewed: getAll,
+  getMostViewed: async (data) => {
+    const limit = Math.min(parseInt(data?.limit || 5), 50);
+    const [plants] = await db.query(
+      `SELECT id, scientific_name, common_name, COALESCE(views, 0) AS views
+       FROM plants
+       ORDER BY views DESC LIMIT ?`,
+      [limit]
+    );
+    return plants;
+  },
   getByStatus: getAll,
   uploadImage: async () => ({ success: false, error: 'Usar servicio uploads.uploadFile' }),
   deleteImage: async () => ({ success: false, error: 'Usar servicio uploads.deleteFile' }),

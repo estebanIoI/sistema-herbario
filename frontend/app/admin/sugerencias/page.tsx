@@ -57,6 +57,7 @@ export default function SugerenciasPage() {
     hasNext: false,
     hasPrev: false
   })
+  const [summary, setSummary] = useState({ total: 0, pending: 0, approved: 0, rejected: 0 })
   const { toast } = useToast()
   const { user, isAuthenticated } = useAuth()
 
@@ -97,7 +98,7 @@ export default function SugerenciasPage() {
         const mappedSugerencias = response.data.suggestions.map((sugerencia: any) => ({
           id: sugerencia.id,
           plantaId: sugerencia.plant_id?.toString(),
-          plantaNombre: sugerencia.scientific_name || "Sin nombre científico",
+          plantaNombre: sugerencia.scientific_name || (sugerencia.plant_id ? `Planta #${sugerencia.plant_id}` : "General"),
           nombre: sugerencia.contact_name || sugerencia.name || "Anónimo",
           apellido: "",
           email: sugerencia.contact_email || sugerencia.email || "",
@@ -106,12 +107,15 @@ export default function SugerenciasPage() {
           argumento: sugerencia.description || "",
           fecha: sugerencia.submitted_at || new Date().toISOString(),
           estado: mapApiStatus(sugerencia.status),
-          // Mantener campos originales para referencia
           ...sugerencia
         }))
 
         setSugerencias(mappedSugerencias)
-        
+
+        if (response.data.summary) {
+          setSummary(response.data.summary)
+        }
+
         // Configurar paginación
         if (response.data.pagination) {
           setPagination({
@@ -249,10 +253,10 @@ export default function SugerenciasPage() {
   }
 
   const estadisticas = {
-    total: sugerencias.length,
-    nuevas: sugerencias.filter((s) => s.estado === "nueva").length,
+    total: summary.total || pagination.total,
+    nuevas: summary.pending,
     revisadas: sugerencias.filter((s) => s.estado === "revisada").length,
-    aprobadas: sugerencias.filter((s) => s.estado === "aprobada").length,
+    aprobadas: summary.approved,
   }
 
   return (

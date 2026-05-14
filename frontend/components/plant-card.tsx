@@ -17,12 +17,13 @@ export default function PlantCard({ planta }: PlantaProps) {
   return (
     <Link href={`/plantas/${planta.id}`}>
       <Card className="overflow-hidden transition-all hover:shadow-md">
-        <div className="relative aspect-square">
+        <div className="relative aspect-square border-b border-border bg-muted">
           <CloudinaryImage
             src={planta.imagen || "/placeholder.svg"}
             alt={planta.nombre}
             fill
-            className="object-cover"
+            className="object-contain"
+            objectFit="contain"
           />
         </div>
         <CardContent className="p-4">

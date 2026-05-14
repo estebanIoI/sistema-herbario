@@ -151,7 +151,8 @@ const uploadFromBuffer = async (buffer, options = {}) => {
 // Eliminar imagen de Cloudinary
 const deleteImage = async (publicId) => {
   try {
-    if (!isConfigured()) {
+    const { configured } = await reconfigureFromDB();
+    if (!configured) {
       throw new Error('Cloudinary no está configurado.');
     }
 

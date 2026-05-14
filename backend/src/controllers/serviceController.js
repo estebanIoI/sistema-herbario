@@ -63,6 +63,11 @@ const SERVICES_REQUIRING_AUTH = [
 
   // PQRSDF (solo gestión admin — el create es público)
   'pqrsdf.getAll',
+
+  // Publicaciones (admin para CUD)
+  'posts.create',
+  'posts.update',
+  'posts.delete',
 ];
 
 /**
@@ -156,7 +161,8 @@ const handleRequest = async (req, res) => {
       'settings.update', 'settings.updateMultiple', 'settings.getAll',
       'settings.reset', 'settings.backup', 'settings.restore', 'settings.testCloudinary',
       'uploads.deleteImage',
-      'export.plants', 'export.statistics', 'export.collections'
+      'export.plants', 'export.statistics', 'export.collections',
+      'posts.create', 'posts.update', 'posts.delete',
     ];
 
     if (adminServices.includes(service) && (!user || user.role !== 'admin')) {

@@ -185,6 +185,37 @@ class ApiService {
     });
   }
 
+  // ── Publicaciones ────────────────────────────────────────────────────────────
+
+  async getPosts(params: { category?: string; page?: number; limit?: number; search?: string; status?: string } = {}): Promise<ApiResponse<{ posts: any[]; total: number; page: number; limit: number }>> {
+    return this.fetchApi('posts.getAll', { body: JSON.stringify(params) });
+  }
+
+  async getPostById(id: number): Promise<ApiResponse<any>> {
+    return this.fetchApi('posts.getById', { body: JSON.stringify({ id }) });
+  }
+
+  async createPost(data: { title: string; content?: string; excerpt?: string; image_url?: string; category?: string; tags?: string; status?: string }): Promise<ApiResponse<any>> {
+    return this.fetchApi('posts.create', {
+      body: JSON.stringify(data),
+      headers: { Authorization: `Bearer ${this.getToken()}` }
+    });
+  }
+
+  async updatePost(id: number, data: Partial<{ title: string; content: string; excerpt: string; image_url: string; category: string; tags: string; status: string }>): Promise<ApiResponse<any>> {
+    return this.fetchApi('posts.update', {
+      body: JSON.stringify({ id, ...data }),
+      headers: { Authorization: `Bearer ${this.getToken()}` }
+    });
+  }
+
+  async deletePost(id: number): Promise<ApiResponse<any>> {
+    return this.fetchApi('posts.delete', {
+      body: JSON.stringify({ id }),
+      headers: { Authorization: `Bearer ${this.getToken()}` }
+    });
+  }
+
   // Obtener plantas para el mapa (con coordenadas y metadatos enriquecidos)
   async getPlantsForMap(params: {
     search?: string;
@@ -209,6 +240,11 @@ class ApiService {
       habit?: string;
       image?: string;
       status?: string;
+      genus?: string;
+      collector_number?: string;
+      author?: string;
+      conservation_status?: string;
+      has_uses?: number;
     }>;
     total: number;
     hasMore: boolean;
@@ -281,32 +317,26 @@ class ApiService {
   async createPlant(plantData: any): Promise<ApiResponse<any>> {
     const token = this.getToken();
 
-    // Si hay imágenes locales (archivos File), procesarlas
     if (plantData.localImages && plantData.localImages.length > 0) {
-      const processedImages: Array<{id?: number; url: string; filename: string; originalName: string}> = [];
+      const processedImages: Array<{id?: number; url: string; thumbnailUrl?: string; filename: string; originalName: string}> = [];
 
       for (const imageData of plantData.localImages) {
-        // Si la imagen ya tiene ID (ya fue subida al servidor), usarla directamente
         if (imageData.id) {
           processedImages.push({
             id: imageData.id,
             url: imageData.url,
+            thumbnailUrl: imageData.thumbnailUrl,
             filename: imageData.filename || imageData.originalName,
             originalName: imageData.originalName
           });
-        }
-        // Si tiene file pero no ID (pendiente de subir o falló antes), intentar subir
-        else if (imageData.file) {
+        } else if (imageData.file) {
           try {
-            const uploadResponse = await this.uploadImage(imageData.file, {
-              entityType: 'plant',
-              isTemporary: true
-            });
-
+            const uploadResponse = await this.uploadImage(imageData.file, { entityType: 'plant', isTemporary: true });
             if (uploadResponse.success && uploadResponse.data) {
               processedImages.push({
                 id: uploadResponse.data.id,
                 url: uploadResponse.data.url,
+                thumbnailUrl: uploadResponse.data.thumbnailUrl,
                 filename: uploadResponse.data.filename,
                 originalName: uploadResponse.data.originalName
               });
@@ -319,21 +349,13 @@ class ApiService {
         }
       }
 
-      // Combinar imágenes existentes con las procesadas
-      const allImages = [
-        ...(plantData.existingImages || []),
-        ...processedImages
-      ];
-
-      // Actualizar los datos de la planta con todas las imágenes
+      const allImages = [...(plantData.existingImages || []), ...processedImages];
       plantData = {
         ...plantData,
         imageIds: allImages.map(img => img.id).filter(Boolean),
         imageUrls: allImages.map(img => img.url).filter(Boolean),
         images: allImages
       };
-
-      // Limpiar campos temporales (no se pueden serializar a JSON)
       delete plantData.localImages;
       delete plantData.existingImages;
     }
@@ -348,32 +370,26 @@ class ApiService {
   async updatePlant(id: number, plantData: any): Promise<ApiResponse<any>> {
     const token = this.getToken();
 
-    // Si hay imágenes locales (archivos File), procesarlas
     if (plantData.localImages && plantData.localImages.length > 0) {
-      const processedImages: Array<{id?: number; url: string; filename: string; originalName: string}> = [];
+      const processedImages: Array<{id?: number; url: string; thumbnailUrl?: string; filename: string; originalName: string}> = [];
 
       for (const imageData of plantData.localImages) {
-        // Si la imagen ya tiene ID (ya fue subida al servidor), usarla directamente
         if (imageData.id) {
           processedImages.push({
             id: imageData.id,
             url: imageData.url,
+            thumbnailUrl: imageData.thumbnailUrl,
             filename: imageData.filename || imageData.originalName,
             originalName: imageData.originalName
           });
-        }
-        // Si tiene file pero no ID (pendiente de subir o falló antes), intentar subir
-        else if (imageData.file) {
+        } else if (imageData.file) {
           try {
-            const uploadResponse = await this.uploadImage(imageData.file, {
-              entityType: 'plant',
-              isTemporary: true
-            });
-
+            const uploadResponse = await this.uploadImage(imageData.file, { entityType: 'plant', isTemporary: true });
             if (uploadResponse.success && uploadResponse.data) {
               processedImages.push({
                 id: uploadResponse.data.id,
                 url: uploadResponse.data.url,
+                thumbnailUrl: uploadResponse.data.thumbnailUrl,
                 filename: uploadResponse.data.filename,
                 originalName: uploadResponse.data.originalName
               });
@@ -386,21 +402,13 @@ class ApiService {
         }
       }
 
-      // Combinar imágenes existentes con las procesadas
-      const allImages = [
-        ...(plantData.existingImages || []),
-        ...processedImages
-      ];
-
-      // Actualizar los datos de la planta con todas las imágenes
+      const allImages = [...(plantData.existingImages || []), ...processedImages];
       plantData = {
         ...plantData,
         imageIds: allImages.map(img => img.id).filter(Boolean),
         imageUrls: allImages.map(img => img.url).filter(Boolean),
         images: allImages
       };
-
-      // Limpiar campos temporales (no se pueden serializar a JSON)
       delete plantData.localImages;
       delete plantData.existingImages;
     }
@@ -417,6 +425,15 @@ class ApiService {
     return this.fetchApi('plants.delete', {
       headers: { 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ id })
+    });
+  }
+
+  // Purgar registros soft-deleted heredados (limpieza de datos legacy)
+  async purgeDeletedPlants(): Promise<ApiResponse<{ purged: number; message: string }>> {
+    const token = this.getToken();
+    return this.fetchApi('plants.purgeDeleted', {
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({})
     });
   }
 

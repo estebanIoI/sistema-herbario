@@ -151,6 +151,10 @@ const PAGINA_SETTINGS = [
   { key_name: 'about_cta_text',         value: 'Si eres investigador, estudiante o entusiasta de la botánica, puedes contribuir a nuestro herbario con especímenes, fotografías o información sobre la flora del Putumayo y la Amazonía colombiana.', type: 'string', description: 'Texto del CTA (Acerca de)' },
   { key_name: 'about_cta_button_text',  value: 'Conoce cómo colaborar',        type: 'string', description: 'Texto botón CTA (Acerca de)' },
   { key_name: 'about_cta_button_url',   value: '/contacto',                    type: 'string', description: 'URL botón CTA (Acerca de)' },
+  // Login
+  { key_name: 'login_bg_image',       value: 'https://www.floresyplantas.net/wp-content/uploads/psychotria-elata-1.jpg', type: 'string', description: 'URL de imagen de fondo del panel izquierdo de la página de login' },
+  { key_name: 'login_bg_attribution', value: 'IERNA SINCHI',       type: 'string',  description: 'Atribución de la imagen de fondo del login' },
+  { key_name: 'login_tagline',        value: 'Descubre la flora de la Amazonia', type: 'string', description: 'Tagline que aparece en el panel izquierdo del login' },
   // Logo
   { key_name: 'logo_text',              value: 'Herbario Digital',  type: 'string',  description: 'Nombre o texto del logo del sitio' },
   { key_name: 'logo_image_url',         value: '',                  type: 'string',  description: 'URL de imagen de logo (opcional, vacío usa icono)' },

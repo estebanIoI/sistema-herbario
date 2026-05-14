@@ -6,14 +6,15 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { useToast } from "@/hooks/use-toast"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import {
-  Plus, Search, Edit2, Eye, Trash2, Globe, FileSpreadsheet,
+  Plus, Search, Edit2, Eye, EyeOff, Trash2, Globe, FileSpreadsheet,
   Loader2, CheckCircle2, Upload, ChevronLeft, ChevronRight, X,
-  AlertCircle, BookOpen, MapPin, Calendar, ImageIcon, ExternalLink
+  AlertCircle, BookOpen, MapPin, Calendar, ImageIcon, ExternalLink, DatabaseZap
 } from "lucide-react"
 import Link from "next/link"
 import { apiService } from "@/lib/api"
@@ -123,6 +124,7 @@ const fmtDate = (d?: string) =>
 
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function AdminPlantas() {
+  const { toast } = useToast()
   const [plantas, setPlantas] = useState<Plant[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -146,6 +148,10 @@ export default function AdminPlantas() {
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
   const [selectedPlant, setSelectedPlant] = useState<any>(null)
+  // Delete confirmation dialog
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<{ id?: number; name?: string; isBulk?: boolean } | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -203,33 +209,99 @@ export default function AdminPlantas() {
   const clearSelection = () => setSelected(new Set())
 
   // ── Acciones ───────────────────────────────────────────────────────────────
-  const deletePlant = async (id: number) => {
-    if (!confirm("¿Eliminar esta planta?")) return
-    await apiService.deletePlant(id)
-    load()
+  const deletePlant = (id: number, name?: string) => {
+    setDeleteTarget({ id, name })
+    setDeleteConfirmOpen(true)
+  }
+
+  const confirmDeleteAction = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      if (deleteTarget.isBulk) {
+        for (const id of selected) await apiService.deletePlant(id)
+        toast({ title: "Eliminados", description: `${selected.size} espécimen(es) eliminados permanentemente.` })
+        clearSelection()
+      } else {
+        const res = await apiService.deletePlant(deleteTarget.id!)
+        if (res.success) {
+          toast({ title: "Espécimen eliminado", description: deleteTarget.name ? `"${deleteTarget.name}" fue eliminado de la base de datos.` : "El espécimen fue eliminado." })
+          setDetailOpen(false)
+        } else {
+          toast({ title: "Error al eliminar", description: res.error || "No se pudo eliminar el espécimen.", variant: "destructive" })
+        }
+      }
+    } catch (e: any) {
+      toast({ title: "Error al eliminar", description: e.message || "Error de conexión.", variant: "destructive" })
+    } finally {
+      setDeleting(false)
+      setDeleteConfirmOpen(false)
+      setDeleteTarget(null)
+      load()
+    }
   }
 
   const publishPlant = async (id: number) => {
-    await apiService.updatePlant(id, { status: "published" })
-    load()
+    try {
+      const res = await apiService.updatePlant(id, { status: "published" })
+      if (res.success) {
+        toast({ title: "Espécimen publicado", description: "El espécimen ya es visible en el catálogo público." })
+        load()
+      } else {
+        toast({ title: "Error al publicar", description: res.error || "No se pudo publicar.", variant: "destructive" })
+      }
+    } catch (e: any) {
+      toast({ title: "Error al publicar", description: e.message || "Error de conexión.", variant: "destructive" })
+    }
+  }
+
+  const unpublishPlant = async (id: number) => {
+    try {
+      const res = await apiService.updatePlant(id, { status: "draft" })
+      if (res.success) {
+        toast({ title: "Espécimen despublicado", description: "El espécimen ya no es visible en el catálogo público." })
+        if (detailOpen) setSelectedPlant((prev: any) => prev ? { ...prev, status: "draft" } : prev)
+        load()
+      } else {
+        toast({ title: "Error al despublicar", description: res.error || "No se pudo despublicar.", variant: "destructive" })
+      }
+    } catch (e: any) {
+      toast({ title: "Error al despublicar", description: e.message || "Error de conexión.", variant: "destructive" })
+    }
   }
 
   const bulkPublish = async () => {
     if (!selected.size) return
     setBulkLoading(true)
-    for (const id of selected) await apiService.updatePlant(id, { status: "published" })
-    setBulkLoading(false)
-    clearSelection()
-    load()
+    try {
+      for (const id of selected) await apiService.updatePlant(id, { status: "published" })
+      toast({ title: "Publicados", description: `${selected.size} espécimen(es) publicados correctamente.` })
+    } catch (e: any) {
+      toast({ title: "Error al publicar", description: e.message, variant: "destructive" })
+    } finally {
+      setBulkLoading(false)
+      clearSelection()
+      load()
+    }
   }
 
-  const bulkDelete = async () => {
-    if (!confirm(`¿Eliminar ${selected.size} planta(s)?`)) return
-    setBulkLoading(true)
-    for (const id of selected) await apiService.deletePlant(id)
-    setBulkLoading(false)
-    clearSelection()
-    load()
+  const bulkDelete = () => {
+    setDeleteTarget({ isBulk: true })
+    setDeleteConfirmOpen(true)
+  }
+
+  const purgeDeletedLegacy = async () => {
+    try {
+      const res = await apiService.purgeDeletedPlants()
+      if (res.success) {
+        toast({ title: "Limpieza completada", description: res.data?.message ?? `${res.data?.purged ?? 0} registro(s) eliminados.` })
+        load()
+      } else {
+        toast({ title: "Error al limpiar", description: res.error || "No se pudo limpiar.", variant: "destructive" })
+      }
+    } catch (e: any) {
+      toast({ title: "Error al limpiar", description: e.message, variant: "destructive" })
+    }
   }
 
   // ── Import Excel ───────────────────────────────────────────────────────────
@@ -347,6 +419,16 @@ export default function AdminPlantas() {
           >
             <FileSpreadsheet className="h-4 w-4 mr-2" />
             Importar Excel
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-orange-600 border-orange-200 hover:bg-orange-50"
+            onClick={purgeDeletedLegacy}
+            title="Elimina permanentemente los registros con estado 'eliminado' que quedaron de versiones anteriores. Libera números de catálogo para reutilización."
+          >
+            <DatabaseZap className="h-4 w-4 mr-2" />
+            Limpiar eliminados
           </Button>
           <Button asChild size="sm" className="bg-green-600 hover:bg-green-700">
             <Link href="/admin/plantas/nueva">
@@ -477,9 +559,20 @@ export default function AdminPlantas() {
                       {p.department ?? <span className="opacity-40">—</span>}
                     </TableCell>
                     <TableCell>
-                      <span className={`inline-flex text-[11px] font-medium px-2 py-0.5 rounded-full border ${s.cls}`}>
-                        {s.label}
-                      </span>
+                      {p.status === "published" ? (
+                        <span className="inline-flex text-[11px] font-medium px-2 py-0.5 rounded-full border bg-green-100 text-green-700 border-green-200">
+                          Publicado
+                        </span>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 text-[11px] px-2 py-0 text-amber-700 border-amber-300 hover:bg-amber-50"
+                          onClick={() => publishPlant(p.id)}
+                        >
+                          Publicar
+                        </Button>
+                      )}
                     </TableCell>
                     <TableCell className="text-right text-xs text-muted-foreground pr-4">
                       {p.views ?? 0}
@@ -500,7 +593,17 @@ export default function AdminPlantas() {
                             <Edit2 className="h-3.5 w-3.5" />
                           </Button>
                         </Link>
-                        {p.status !== "published" && (
+                        {p.status === "published" ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-amber-600 hover:text-amber-700"
+                            onClick={() => unpublishPlant(p.id)}
+                            title="Despublicar"
+                          >
+                            <EyeOff className="h-3.5 w-3.5" />
+                          </Button>
+                        ) : (
                           <Button
                             variant="ghost"
                             size="icon"
@@ -515,7 +618,8 @@ export default function AdminPlantas() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-red-500 hover:text-red-600"
-                          onClick={() => deletePlant(p.id)}
+                          onClick={() => deletePlant(p.id, p.scientific_name)}
+                          title="Eliminar"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
@@ -725,6 +829,11 @@ export default function AdminPlantas() {
       {/* ── Dialog Detalle de Planta ─────────────────────────────────── */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col p-0 gap-0">
+          {/* DialogTitle requerido por Radix para accesibilidad (sr-only cuando hay contenido propio) */}
+          <DialogTitle className="sr-only">
+            {selectedPlant?.scientific_name ?? 'Detalle del espécimen'}
+          </DialogTitle>
+
           {detailLoading ? (
             <div className="flex items-center justify-center py-24">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -773,13 +882,22 @@ export default function AdminPlantas() {
                       </span>
                     </div>
                   </div>
-                  <div className="flex gap-1.5 flex-shrink-0">
+                  <div className="flex gap-1.5 flex-shrink-0 flex-wrap justify-end">
                     <Link href={`/admin/plantas/${selectedPlant.id}/editar`}>
                       <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
                         <Edit2 className="h-3 w-3" />Editar
                       </Button>
                     </Link>
-                    {selectedPlant.status !== 'published' && (
+                    {selectedPlant.status === 'published' ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs gap-1 text-amber-700 border-amber-300 hover:bg-amber-50"
+                        onClick={() => unpublishPlant(selectedPlant.id)}
+                      >
+                        <EyeOff className="h-3 w-3" />Despublicar
+                      </Button>
+                    ) : (
                       <Button
                         size="sm"
                         className="h-8 text-xs gap-1 bg-green-600 hover:bg-green-700"
@@ -793,6 +911,15 @@ export default function AdminPlantas() {
                         <ExternalLink className="h-3.5 w-3.5" />
                       </Button>
                     </Link>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                      title="Eliminar espécimen"
+                      onClick={() => deletePlant(selectedPlant.id, selectedPlant.scientific_name)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -979,6 +1106,40 @@ export default function AdminPlantas() {
               No se pudo cargar la información
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog confirmación eliminar ─────────────────────────────── */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={open => { if (!deleting) setDeleteConfirmOpen(open) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Eliminar espécimen
+            </DialogTitle>
+            <DialogDescription className="pt-1">
+              {deleteTarget?.isBulk
+                ? `Estás a punto de eliminar ${selected.size} espécimen(es) permanentemente. Esta acción no se puede deshacer.`
+                : <>Estás a punto de eliminar <span className="font-medium text-foreground italic">{deleteTarget?.name ?? 'este espécimen'}</span> permanentemente. Esta acción no se puede deshacer.</>
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteConfirmOpen(false)}
+              disabled={deleting}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteAction}
+              disabled={deleting}
+            >
+              {deleting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Eliminando…</> : "Eliminar definitivamente"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

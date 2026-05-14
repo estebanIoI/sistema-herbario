@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Search, X, Map, List } from "lucide-react"
+import { useState, useEffect, useMemo } from "react"
+import { useRouter } from "next/navigation"
+import { Search, X, Map, List, Camera, ChevronUp, ChevronDown, ChevronsUpDown, Eye } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -59,6 +60,7 @@ interface PaginationData {
 }
 
 export default function PlantasPage() {
+  const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
   const [familiaFilter, setFamiliaFilter] = useState("")
   const [advancedFilters, setAdvancedFilters] = useState<{ field: string; value: string }[]>([])
@@ -75,9 +77,13 @@ export default function PlantasPage() {
   })
   const [loading, setLoading] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('map')
   const [mapPlants, setMapPlants] = useState<PlantMapData[]>([])
   const [mapLoading, setMapLoading] = useState(false)
+  const [sortField, setSortField] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [tablePage, setTablePage] = useState(1)
+  const [tablePageSize, setTablePageSize] = useState(25)
 
   // Función para cargar plantas desde la API
   const loadPlants = async (params: any = {}) => {
@@ -240,21 +246,11 @@ export default function PlantasPage() {
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
       loadPlants()
-      // Cargar plantas del mapa si estamos en modo mapa
-      if (viewMode === 'map') {
-        loadMapPlants()
-      }
-    }, searchTerm ? 500 : 0) // Debounce de 500ms para búsquedas
+      loadMapPlants()
+    }, searchTerm ? 500 : 0)
 
     return () => clearTimeout(debounceTimer)
   }, [currentPage, searchTerm, familiaFilter, advancedFilters])
-
-  // Cargar plantas del mapa cuando se cambia a vista de mapa
-  useEffect(() => {
-    if (viewMode === 'map' && mapPlants.length === 0) {
-      loadMapPlants()
-    }
-  }, [viewMode])
 
   // Los filtros avanzados ahora se envían al backend junto con otros filtros
   // Ya no necesitamos aplicar filtros localmente porque el backend maneja todo
@@ -285,6 +281,43 @@ export default function PlantasPage() {
     // Recargar plantas sin filtros
     loadPlants()
   }
+
+  // ── Tabla del mapa ──────────────────────────────────────────────────────────
+
+  const mapTableStats = useMemo(() => {
+    const families    = new Set(mapPlants.filter(p => p.family).map(p => p.family)).size
+    const genera      = new Set(mapPlants.filter(p => p.genus).map(p => p.genus)).size
+    const species     = new Set(mapPlants.map(p => p.scientific_name)).size
+    const threatened  = mapPlants.filter(p => p.conservation_status && p.conservation_status.trim() !== '').length
+    const useful      = mapPlants.filter(p => p.has_uses === 1).length
+    return { families, genera, species, threatened, useful }
+  }, [mapPlants])
+
+  const handleTableSort = (field: string) => {
+    if (sortField === field) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDir('asc')
+    }
+    setTablePage(1)
+  }
+
+  const sortedMapPlants = useMemo(() => {
+    if (!sortField) return mapPlants
+    return [...mapPlants].sort((a, b) => {
+      const av = ((a as any)[sortField] ?? '') as string
+      const bv = ((b as any)[sortField] ?? '') as string
+      const cmp = String(av).localeCompare(String(bv), 'es', { sensitivity: 'base' })
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [mapPlants, sortField, sortDir])
+
+  const totalTablePages = Math.ceil(sortedMapPlants.length / tablePageSize)
+  const paginatedMapPlants = useMemo(() => {
+    const start = (tablePage - 1) * tablePageSize
+    return sortedMapPlants.slice(start, start + tablePageSize)
+  }, [sortedMapPlants, tablePage, tablePageSize])
 
   // Obtener el label para un campo dado
   const getFieldLabel = (field: string) => {
@@ -395,35 +428,199 @@ export default function PlantasPage() {
 
       {/* Vista de Mapa */}
       {viewMode === 'map' && (
-        <div className="mb-8">
-          {mapLoading ? (
-            <div className="h-[500px] bg-muted rounded-lg flex items-center justify-center">
-              <p className="text-lg text-muted-foreground">Cargando mapa...</p>
-            </div>
-          ) : mapPlants.length === 0 ? (
-            <div className="h-[500px] bg-muted rounded-lg flex flex-col items-center justify-center">
-              <p className="text-lg text-muted-foreground">No hay plantas con ubicación geográfica registrada.</p>
-              <Button
-                variant="outline"
-                className="mt-4"
-                onClick={clearFilters}
-              >
-                Limpiar filtros
-              </Button>
-            </div>
-          ) : (
-            <>
-              <div className="text-sm text-muted-foreground mb-2">
-                {mapPlants.length} plantas con ubicación geográfica
+        <>
+          {/* Mapa */}
+          <div className="mb-8">
+            {mapLoading ? (
+              <div className="h-[500px] bg-muted rounded-lg flex items-center justify-center">
+                <p className="text-lg text-muted-foreground">Cargando mapa...</p>
               </div>
+            ) : mapPlants.length === 0 ? (
+              <div className="h-[500px] bg-muted rounded-lg flex flex-col items-center justify-center">
+                <p className="text-lg text-muted-foreground">No hay plantas con ubicación geográfica registrada.</p>
+                <Button variant="outline" className="mt-4" onClick={clearFilters}>
+                  Limpiar filtros
+                </Button>
+              </div>
+            ) : (
               <PlantMap
                 plants={mapPlants}
                 height="500px"
                 className="rounded-lg border shadow-sm"
               />
-            </>
+            )}
+          </div>
+
+          {/* ── Sección estadísticas + tabla ─────────────────────────────── */}
+          {!mapLoading && mapPlants.length > 0 && (
+            <div className="mb-8">
+              {/* Contador total */}
+              <p className="text-sm text-muted-foreground mb-5">
+                <span className="font-semibold text-foreground">{mapPlants.length}</span> registros con ubicación geográfica
+              </p>
+
+              {/* Tarjetas de estadísticas */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+                {[
+                  { label: 'Familias',            value: mapTableStats.families,  color: 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950 dark:border-emerald-800' },
+                  { label: 'Géneros',             value: mapTableStats.genera,    color: 'bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800' },
+                  { label: 'Especies',            value: mapTableStats.species,   color: 'bg-violet-50 border-violet-200 dark:bg-violet-950 dark:border-violet-800' },
+                  { label: 'Esp. amenazadas',     value: mapTableStats.threatened,color: 'bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800' },
+                  { label: 'Plantas útiles',      value: mapTableStats.useful,    color: 'bg-amber-50 border-amber-200 dark:bg-amber-950 dark:border-amber-800' },
+                ].map(card => (
+                  <div key={card.label} className={`rounded-xl border p-4 text-center ${card.color}`}>
+                    <p className="text-3xl font-bold tabular-nums">{card.value}</p>
+                    <p className="text-xs text-muted-foreground mt-1 leading-tight">{card.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Controles de la tabla */}
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <p className="text-sm text-muted-foreground">
+                  Mostrando registros del{' '}
+                  <span className="font-medium text-foreground">{(tablePage - 1) * tablePageSize + 1}</span>
+                  {' '}al{' '}
+                  <span className="font-medium text-foreground">{Math.min(tablePage * tablePageSize, sortedMapPlants.length)}</span>
+                  {' '}de un total de{' '}
+                  <span className="font-medium text-foreground">{sortedMapPlants.length}</span> registros
+                </p>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Registros por página:</span>
+                  <Select value={String(tablePageSize)} onValueChange={v => { setTablePageSize(Number(v)); setTablePage(1) }}>
+                    <SelectTrigger className="w-20 h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[10, 25, 50, 100].map(n => (
+                        <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Tabla */}
+              <div className="overflow-x-auto rounded-lg border shadow-sm">
+                <table className="w-full text-sm">
+                  {(() => {
+                    const SortIcon = ({ field }: { field: string }) => {
+                      if (sortField !== field) return <ChevronsUpDown className="inline h-3 w-3 ml-1 opacity-40" />
+                      return sortDir === 'asc'
+                        ? <ChevronUp className="inline h-3 w-3 ml-1 text-primary" />
+                        : <ChevronDown className="inline h-3 w-3 ml-1 text-primary" />
+                    }
+                    const headers = (
+                      <tr className="bg-muted/60 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        <th className="px-3 py-3 text-left cursor-pointer hover:text-foreground whitespace-nowrap" onClick={() => handleTableSort('collector_number')}>
+                          No. Colector <SortIcon field="collector_number" />
+                        </th>
+                        <th className="px-3 py-3 text-left cursor-pointer hover:text-foreground whitespace-nowrap" onClick={() => handleTableSort('recorded_by')}>
+                          Colector <SortIcon field="recorded_by" />
+                        </th>
+                        <th className="px-3 py-3 text-center whitespace-nowrap">Imagen</th>
+                        <th className="px-3 py-3 text-left cursor-pointer hover:text-foreground whitespace-nowrap" onClick={() => handleTableSort('family')}>
+                          Familia <SortIcon field="family" />
+                        </th>
+                        <th className="px-3 py-3 text-left cursor-pointer hover:text-foreground whitespace-nowrap" onClick={() => handleTableSort('genus')}>
+                          Género <SortIcon field="genus" />
+                        </th>
+                        <th className="px-3 py-3 text-left cursor-pointer hover:text-foreground whitespace-nowrap" onClick={() => handleTableSort('scientific_name')}>
+                          Especie <SortIcon field="scientific_name" />
+                        </th>
+                        <th className="px-3 py-3 text-left cursor-pointer hover:text-foreground whitespace-nowrap" onClick={() => handleTableSort('catalog_number')}>
+                          No. Herbario <SortIcon field="catalog_number" />
+                        </th>
+                        <th className="px-3 py-3 text-center whitespace-nowrap">Acción</th>
+                      </tr>
+                    )
+                    return (
+                      <>
+                        <thead>{headers}</thead>
+                        <tbody className="divide-y divide-border">
+                          {paginatedMapPlants.map((plant, idx) => (
+                            <tr key={plant.id} className={idx % 2 === 0 ? 'bg-background' : 'bg-muted/20'}>
+                              <td className="px-3 py-2 text-muted-foreground">{plant.collector_number || '—'}</td>
+                              <td className="px-3 py-2">{plant.recorded_by || '—'}</td>
+                              <td className="px-3 py-2 text-center">
+                                {plant.image ? (
+                                  <img
+                                    src={plant.image}
+                                    alt={plant.scientific_name}
+                                    className="h-10 w-14 object-cover rounded mx-auto"
+                                  />
+                                ) : (
+                                  <Camera className="h-5 w-5 text-muted-foreground/40 mx-auto" />
+                                )}
+                              </td>
+                              <td className="px-3 py-2">{plant.family || '—'}</td>
+                              <td className="px-3 py-2">{plant.genus || '—'}</td>
+                              <td className="px-3 py-2">
+                                <em>{plant.scientific_name}</em>
+                                {plant.author && <span className="text-muted-foreground ml-1 not-italic">{plant.author}</span>}
+                              </td>
+                              <td className="px-3 py-2 text-muted-foreground">{plant.catalog_number || '—'}</td>
+                              <td className="px-3 py-2 text-center">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs gap-1"
+                                  onClick={() => router.push(`/plantas/${plant.id}`)}
+                                >
+                                  <Eye className="h-3 w-3" />
+                                  Ver ficha
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>{headers}</tfoot>
+                      </>
+                    )
+                  })()}
+                </table>
+              </div>
+
+              {/* Paginación */}
+              {totalTablePages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setTablePage(p => Math.max(1, p - 1))}
+                    disabled={tablePage === 1}
+                  >
+                    Anterior
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalTablePages) }, (_, i) => {
+                      const pageNum = Math.max(1, Math.min(totalTablePages - 4, tablePage - 2)) + i
+                      if (pageNum > totalTablePages) return null
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={pageNum === tablePage ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setTablePage(pageNum)}
+                        >
+                          {pageNum}
+                        </Button>
+                      )
+                    })}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setTablePage(p => Math.min(totalTablePages, p + 1))}
+                    disabled={tablePage === totalTablePages}
+                  >
+                    Siguiente
+                  </Button>
+                </div>
+              )}
+            </div>
           )}
-        </div>
+        </>
       )}
 
       {/* Resultados de la búsqueda (Vista Lista) */}

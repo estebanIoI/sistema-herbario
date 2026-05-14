@@ -97,7 +97,19 @@ const getAll = async (data, user) => {
       
       // Asegurarse de que los datos devueltos estén en el formato esperado por el frontend
       const formattedSuggestions = suggestions.map(suggestion => {
-        // Normalizar nombres de propiedades para que coincidan con lo que espera el frontend
+        // Extraer datos de contacto almacenados en el campo attachments (JSON)
+        let contactName = null, contactEmail = null, contactPhone = null;
+        if (suggestion.attachments) {
+          try {
+            const att = typeof suggestion.attachments === 'string'
+              ? JSON.parse(suggestion.attachments)
+              : suggestion.attachments;
+            contactName  = att.contact_name  || att.name  || null;
+            contactEmail = att.contact_email || att.email || null;
+            contactPhone = att.contact_phone || att.phone || null;
+          } catch { /* attachments mal formado */ }
+        }
+
         return {
           id: suggestion.id,
           plant_id: suggestion.plant_id || null,
@@ -105,18 +117,19 @@ const getAll = async (data, user) => {
           description: suggestion.description || '',
           status: suggestion.status || 'pending',
           priority: suggestion.priority || 'medium',
-          submitted_at: suggestion.created_at ? 
-            new Date(suggestion.created_at).toISOString() : 
-            new Date().toISOString(),
-          reviewed_at: suggestion.resolved_at ? 
-            new Date(suggestion.resolved_at).toISOString() : 
-            null,
+          submitted_at: suggestion.created_at
+            ? new Date(suggestion.created_at).toISOString()
+            : new Date().toISOString(),
+          reviewed_at: suggestion.resolved_at
+            ? new Date(suggestion.resolved_at).toISOString()
+            : null,
           suggestion_type: suggestion.type || 'correction',
           votes_up: suggestion.votes_up || 0,
           votes_down: suggestion.votes_down || 0,
-          // Datos adicionales
+          contact_name:  contactName,
+          contact_email: contactEmail,
+          contact_phone: contactPhone,
           assignedTo: suggestion.assigned_to || null,
-          attachments: suggestion.attachments || null
         };
       });
       

@@ -61,17 +61,24 @@ function FitBounds({ plants }: { plants: PlantMapData[] }) {
       valid.map(p => [p.decimal_latitude, p.decimal_longitude] as [number, number])
     )
 
-    // requestAnimationFrame asegura que el DOM del mapa esté completamente
-    // inicializado antes de lanzar la animación, evitando '_leaflet_pos' undefined
+    let cancelled = false
     const raf = requestAnimationFrame(() => {
+      if (cancelled) return
       try {
-        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 })
+        map.stop()
+        // animate:false evita que _onZoomTransitionEnd se dispare tras un
+        // re-render, eliminando el crash '_leaflet_pos' undefined
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12, animate: false })
       } catch {
-        // Race condition entre animación Leaflet y re-render de React — ignorar
+        // Ignorar cualquier estado inconsistente residual
       }
     })
 
-    return () => cancelAnimationFrame(raf)
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(raf)
+      try { map.stop() } catch { /* ignorar */ }
+    }
   }, [plants, map])
 
   return null

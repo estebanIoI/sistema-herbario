@@ -5,10 +5,10 @@ import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Badge } from "@/components/ui/badge"
-import { LayoutDashboard, Leaf, BarChart, Users, Settings, LogOut, Menu, MessageSquare, Monitor } from "lucide-react"
+import { LayoutDashboard, Leaf, BarChart, Users, Settings, LogOut, Menu, MessageSquare, Monitor, Newspaper } from "lucide-react"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { apiService } from "@/lib/api"
 
 export default function AdminSidebar() {
@@ -88,6 +88,11 @@ export default function AdminSidebar() {
       label: "Sugerencias",
       icon: <MessageSquare className="h-5 w-5" />,
       badge: nuevasSugerencias > 0 ? nuevasSugerencias : undefined,
+    },
+    {
+      href: "/admin/publicaciones",
+      label: "Publicaciones",
+      icon: <Newspaper className="h-5 w-5" />,
     },
     {
       href: "/admin/pagina",
@@ -174,6 +179,7 @@ export default function AdminSidebar() {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-64 p-0">
+            <SheetTitle className="sr-only">Menú de administración</SheetTitle>
             <div className="flex h-full flex-col justify-between overflow-y-auto">
               <NavItems />
             </div>

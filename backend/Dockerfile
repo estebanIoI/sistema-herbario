@@ -1,4 +1,7 @@
-FROM node:18-alpine
+FROM node:20-alpine
+
+# Aplicar parches de seguridad disponibles en Alpine
+RUN apk update && apk upgrade --no-cache && rm -rf /var/cache/apk/*
 
 # Instalar pnpm
 RUN npm install -g pnpm
@@ -24,7 +27,6 @@ COPY --chown=nodejs:nodejs . .
 # Cambiar a usuario no-root
 USER nodejs
 
-EXPOSE 3001
+EXPOSE 5001
 
-# Usar comando más robusto
 CMD ["node", "server.js"]

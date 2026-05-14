@@ -5,8 +5,8 @@ import { useState } from "react"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Menu, Leaf } from "lucide-react"
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Menu, Leaf, CircleUser } from "lucide-react"
 import { usePublicSettings } from "@/lib/use-public-settings"
 
 export default function Navbar() {
@@ -19,12 +19,13 @@ export default function Navbar() {
   // No mostrar la barra de navegación en las páginas de administración ni en la página de login
   if (isAdmin || isLoginPage) return null
 
-  const logoText  = s.logoText   || "Herbario Digital"
+  const logoText  = s.logoText ?? "Herbario Digital"
   const logoImage = s.logoImageUrl || ""
 
   const routes = [
     { href: "/", label: "Inicio" },
     { href: "/plantas", label: "Plantas" },
+    { href: "/publicaciones", label: "Publicaciones" },
     { href: "/acerca", label: "Acerca de" },
     { href: "/contacto", label: "Contacto" },
   ]
@@ -35,11 +36,11 @@ export default function Navbar() {
         <Link href="/" className="flex items-center gap-2">
           {logoImage ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoImage} alt={logoText} className="h-6 w-6 object-contain" />
+            <img src={logoImage} alt={logoText} className="h-10 w-10 object-contain" />
           ) : (
             <Leaf className="h-6 w-6 text-green-600" />
           )}
-          <span className="text-xl font-bold">{logoText}</span>
+          {logoText && <span className="text-xl font-bold">{logoText}</span>}
         </Link>
 
         {/* Navegación para escritorio */}
@@ -59,8 +60,11 @@ export default function Navbar() {
 
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <Button asChild size="sm" className="hidden md:inline-flex bg-green-600 hover:bg-green-700">
-            <Link href="/login">Acceder</Link>
+          <Button asChild variant="ghost" size="icon" className="hidden md:inline-flex" title="Iniciar sesión">
+            <Link href="/login">
+              <CircleUser className="h-6 w-6" />
+              <span className="sr-only">Iniciar sesión</span>
+            </Link>
           </Button>
 
           {/* Menú móvil */}
@@ -72,6 +76,7 @@ export default function Navbar() {
               </Button>
             </SheetTrigger>
             <SheetContent side="right">
+              <SheetTitle className="sr-only">Menú de navegación</SheetTitle>
               <div className="flex flex-col space-y-4 mt-8">
                 {routes.map((route) => (
                   <Link
@@ -85,9 +90,10 @@ export default function Navbar() {
                     {route.label}
                   </Link>
                 ))}
-                <Button asChild size="sm" className="mt-4 bg-green-600 hover:bg-green-700">
+                <Button asChild variant="ghost" size="sm" className="mt-4 justify-start gap-2">
                   <Link href="/login" onClick={() => setIsOpen(false)}>
-                    Acceder
+                    <CircleUser className="h-5 w-5" />
+                    Iniciar sesión
                   </Link>
                 </Button>
               </div>

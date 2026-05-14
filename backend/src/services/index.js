@@ -9,6 +9,7 @@ const uploadsController = require('../controllers/uploads/uploadsController');
 const suggestionsController = require('../controllers/suggestions/suggestionsController');
 const settingsController = require('../controllers/settings/settingsController');
 const pqrsdfController   = require('../controllers/pqrsdf/pqrsdfController');
+const postsController    = require('../controllers/posts/postsController');
 
 // Controladores específicos para servicios (sin req/res)
 const getAllPlants = require('../controllers/plants/getAll');
@@ -72,6 +73,7 @@ const services = {
   'plants.getByStatus': plantsController.getByStatus,
   'plants.getRecent': plantsController.getRecent,
   'plants.getMostViewed': plantsController.getMostViewed,
+  'plants.purgeDeleted': plantsController.purgeDeleted,
 
   // ===============================
   // SERVICIOS DE TAXONOMÍA
@@ -174,12 +176,6 @@ const services = {
   'settings.testCloudinary': settingsController.testCloudinary,
 
   // ===============================
-  // SERVICIOS DE SUGERENCIAS
-  // ===============================
-  'suggestions.create': suggestionsController.create,
-  'suggestions.getAll': suggestionsController.getAll,
-
-  // ===============================
   // SERVICIOS ESPECIALES PARA EL FRONTEND
   // ===============================
   // Para página principal
@@ -210,6 +206,15 @@ const services = {
   // ===============================
   'pqrsdf.create': pqrsdfController.create,   // público — no requiere auth
   'pqrsdf.getAll': pqrsdfController.getAll,   // admin
+
+  // ===============================
+  // SERVICIOS DE PUBLICACIONES
+  // ===============================
+  'posts.getAll':   postsController.getAll,
+  'posts.getById':  postsController.getById,
+  'posts.create':   postsController.create,
+  'posts.update':   postsController.update,
+  'posts.delete':   postsController.delete,
 
   // ===============================
   // SERVICIOS DE VALIDACIÓN

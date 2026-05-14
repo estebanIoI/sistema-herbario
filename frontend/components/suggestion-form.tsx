@@ -77,32 +77,16 @@ export function SuggestionForm() {
   const onSubmit = async (data: SuggestionFormValues) => {
     setIsSubmitting(true)
     try {
-      console.log("Enviando sugerencia:", data);
-      
-      // Llamar directamente a la API en lugar de usar apiService para depuración
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/service`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          service: "suggestions.create",
-          data: {
-            title: data.title,
-            description: data.description,
-            type: data.type,
-            // Incluir campos opcionales solo si tienen valores
-            ...(data.email && { email: data.email }),
-            ...(data.name && { name: data.name })
-          }
-        }),
-      });
-      
-      const result = await response.json();
-      console.log("Respuesta API:", result);
-      
+      const result = await apiService.createSuggestion({
+        title: data.title,
+        description: data.description,
+        type: data.type,
+        ...(data.email && { email: data.email }),
+        ...(data.name  && { name: data.name }),
+      })
+
       if (!result.success) {
-        throw new Error(result.error || "Error desconocido");
+        throw new Error(result.error || "Error desconocido")
       }
 
       toast({
