@@ -143,12 +143,12 @@ services:
           "CMD",
           "node",
           "-e",
-          "require('http').get('http://localhost:5001/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1))",
+          "const n=require('net');const c=n.connect(5001,'localhost',()=>{c.destroy();process.exit(0)});c.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),5000)",
         ]
-      interval: 30s
-      timeout: 15s
+      interval: 20s
+      timeout: 10s
       retries: 5
-      start_period: 90s
+      start_period: 30s
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.herbario-api.rule=Host(`${API_DOMAIN}`)"

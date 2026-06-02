@@ -115,7 +115,6 @@ app.get('/info', (req, res) => {
 });
 
 // Rutas principales del API
-console.log("📦 Registrando ruta principal /api/service");
 app.use('/api/service', serviceRouter);
 app.use('/api/plantas', plantsRouter);
 app.use('/api/media', mediaRouter);

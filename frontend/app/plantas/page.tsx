@@ -77,6 +77,8 @@ export default function PlantasPage() {
   })
   const [loading, setLoading] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
+  const [dynamicLimit, setDynamicLimit] = useState(100)   // 100 = show all; 24 = paginate
+  const [paginationEnabled, setPaginationEnabled] = useState(false)
   const [viewMode, setViewMode] = useState<'list' | 'map'>('map')
   const [mapPlants, setMapPlants] = useState<PlantMapData[]>([])
   const [mapLoading, setMapLoading] = useState(false)
@@ -110,14 +112,31 @@ export default function PlantasPage() {
 
       const response = await apiService.getPlants({
         page: currentPage,
-        limit: 12,
+        limit: dynamicLimit,
         search: searchTerm,
         family: familiaFilter && familiaFilter !== "todas" ? familiaFilter : undefined,
-        ...advancedFiltersParams, // Incluir filtros avanzados
+        ...advancedFiltersParams,
         ...params
       })
 
       if (response.success && response.data && response.data.plants) {
+        const apiPagination = response.data.pagination
+
+        // Threshold: si total > 100 y aún no paginamos → activar paginación y recargar
+        if (apiPagination.total > 100 && dynamicLimit === 100) {
+          setDynamicLimit(24)
+          setPaginationEnabled(true)
+          setCurrentPage(1)
+          return
+        }
+        // Si un filtro redujo el total a ≤100 → volver a mostrar todo sin paginar
+        if (apiPagination.total <= 100 && paginationEnabled) {
+          setDynamicLimit(100)
+          setPaginationEnabled(false)
+          setCurrentPage(1)
+          return
+        }
+
         // Mapear los datos de la API al formato esperado por la interfaz
         const mappedPlants = response.data.plants.map((plant: any) => ({
           id: plant.id,
@@ -159,9 +178,6 @@ export default function PlantasPage() {
 
         setPlantas(mappedPlants)
         setFilteredPlantas(mappedPlants)
-        
-        // Mapear la paginación de la API a nuestro formato
-        const apiPagination = response.data.pagination
         setPagination({
           page: apiPagination.page,
           limit: apiPagination.limit,
@@ -250,7 +266,8 @@ export default function PlantasPage() {
     }, searchTerm ? 500 : 0)
 
     return () => clearTimeout(debounceTimer)
-  }, [currentPage, searchTerm, familiaFilter, advancedFilters])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, searchTerm, familiaFilter, advancedFilters, dynamicLimit, paginationEnabled])
 
   // Los filtros avanzados ahora se envían al backend junto con otros filtros
   // Ya no necesitamos aplicar filtros localmente porque el backend maneja todo
@@ -278,8 +295,8 @@ export default function PlantasPage() {
     setFamiliaFilter("")
     setAdvancedFilters([])
     setCurrentPage(1)
-    // Recargar plantas sin filtros
-    loadPlants()
+    setDynamicLimit(100)
+    setPaginationEnabled(false)
   }
 
   // ── Tabla del mapa ──────────────────────────────────────────────────────────
@@ -651,8 +668,8 @@ export default function PlantasPage() {
                 ))}
               </div>
 
-              {/* Paginación */}
-              {pagination.totalPages > 1 && (
+              {/* Paginación — solo si hay más de 100 plantas */}
+              {paginationEnabled && pagination.totalPages > 1 && (
                 <div className="flex items-center justify-center gap-2 mt-8">
                   <Button
                     variant="outline"

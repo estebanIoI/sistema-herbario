@@ -55,12 +55,12 @@ const getAll = async (data) => {
     }
 
     if (species) {
-      whereConditions.push('species LIKE ?');
+      whereConditions.push('specific_epithet LIKE ?');
       queryParams.push(`%${species}%`);
     }
 
     if (department) {
-      whereConditions.push('department = ?');
+      whereConditions.push('state_province = ?');
       queryParams.push(department);
     }
 
@@ -70,7 +70,7 @@ const getAll = async (data) => {
     }
 
     if (collector) {
-      whereConditions.push('collector_name LIKE ?');
+      whereConditions.push('recorded_by LIKE ?');
       queryParams.push(`%${collector}%`);
     }
 
@@ -80,7 +80,7 @@ const getAll = async (data) => {
     }
 
     if (catalog_number) {
-      whereConditions.push('herbarium_number LIKE ?');
+      whereConditions.push('catalog_number LIKE ?');
       queryParams.push(`%${catalog_number}%`);
     }
 
@@ -88,21 +88,19 @@ const getAll = async (data) => {
       ? `WHERE ${whereConditions.join(' AND ')}` 
       : '';
 
-    // Query para obtener las plantas
+    // Query para obtener las plantas (nombres Darwin Core)
     const plantsQuery = `
       SELECT
-        id, herbarium_number as catalog_number, scientific_name,
-        vernacular_name, common_name, family, genus, species,
-        department, municipality, specific_location as locality,
-        collector_name as recorded_by, collection_date as event_date,
-        habit as plant_habit, description, habitat, uses, care_instructions,
-        latitude, longitude,
-        CAST(latitude AS DECIMAL(10,8)) as decimal_latitude,
-        CAST(longitude AS DECIMAL(11,8)) as decimal_longitude,
+        id, catalog_number, scientific_name,
+        vernacular_name, common_name, family, genus, specific_epithet,
+        state_province, municipality, locality,
+        recorded_by, event_date, plant_habit,
+        description, habitat, uses, care_instructions,
+        decimal_latitude, decimal_longitude,
         status, featured, views, created_at
-      FROM plants 
+      FROM plants
       ${whereClause}
-      ORDER BY created_at DESC 
+      ORDER BY created_at DESC
       LIMIT ? OFFSET ?
     `;
 
@@ -130,23 +128,11 @@ const getAll = async (data) => {
     const total = totalResult[0].total;
     const totalPages = Math.ceil(total / limit);
 
-    // Procesar las plantas - mapear campos de la BD al formato del frontend
+    // Procesar las plantas — nombres Darwin Core, sin alias
     const processedPlants = plants.map(plant => ({
       ...plant,
-      specific_epithet: plant.species, // Mapear species a specific_epithet para el frontend
-      state_province: plant.department, // Mapear department a state_province para el frontend
-      imageUrls: [], // Por ahora vacío, después se puede agregar lógica para obtener imágenes
-      // Asegurar que todos los campos tengan valores por defecto
+      imageUrls: [],
       vernacular_name: plant.vernacular_name || plant.common_name || null,
-      municipality: plant.municipality || null,
-      locality: plant.locality || null,
-      recorded_by: plant.recorded_by || null,
-      event_date: plant.event_date || null,
-      plant_habit: plant.plant_habit || null,
-      description: plant.description || null,
-      habitat: plant.habitat || null,
-      uses: plant.uses || null,
-      care_instructions: plant.care_instructions || null,
       decimal_latitude: plant.decimal_latitude != null ? parseFloat(plant.decimal_latitude) : null,
       decimal_longitude: plant.decimal_longitude != null ? parseFloat(plant.decimal_longitude) : null
     }));

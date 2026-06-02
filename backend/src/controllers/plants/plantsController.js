@@ -51,17 +51,17 @@ const getAll = async (req, res) => {
     }
     
     if (departamento) {
-      whereConditions.push('p.department = ?');
+      whereConditions.push('p.state_province = ?');
       queryParams.push(departamento);
     }
-    
+
     if (municipio) {
       whereConditions.push('p.municipality = ?');
       queryParams.push(municipio);
     }
-    
+
     if (colector) {
-      whereConditions.push('p.collector_name LIKE ?');
+      whereConditions.push('p.recorded_by LIKE ?');
       queryParams.push(`%${colector}%`);
     }
 
@@ -105,11 +105,12 @@ const getAll = async (req, res) => {
           nombreComun: plant.common_name,
           familia: plant.family,
           genero: plant.genus,
-          especie: plant.species,
-          departamento: plant.department,
+          especie: plant.specific_epithet,
+          departamento: plant.state_province,
           municipio: plant.municipality,
-          colector: plant.collector_name,
-          numeroColector: plant.collector_number,
+          colector: plant.recorded_by,
+          numeroColector: plant.record_number,
+          catalogNumber: plant.catalog_number,
           imagen: plant.main_image || '/placeholder.svg',
           thumbnail: plant.thumbnail_url,
           totalImages: plant.total_images || 0,
@@ -184,8 +185,8 @@ const getById = async (req, res) => {
       nombreComun: plant.common_name,
       familia: plant.family,
       genero: plant.genus,
-      especie: plant.species,
-      autor: plant.author,
+      especie: plant.specific_epithet,
+      autor: plant.scientific_name_authorship,
       descripcion: plant.description,
       habitat: plant.habitat,
       usos: plant.uses,
@@ -198,21 +199,21 @@ const getById = async (req, res) => {
         caption: img.caption,
         isMain: img.is_main
       })),
-      // Datos del herbario
-      numeroHerbario: plant.herbarium_number,
+      // Datos del herbario (Darwin Core)
+      catalogNumber: plant.catalog_number,
+      recordNumber: plant.record_number,
       determino: plant.determined_by,
       fechaDeterminacion: plant.determination_date,
-      colector: plant.collector_name,
-      numeroColector: plant.collector_number,
-      fechaColeccion: plant.collection_date,
-      localizacion: `${plant.country}, ${plant.department}, ${plant.municipality}, ${plant.specific_location}`,
+      colector: plant.recorded_by,
+      fechaColeccion: plant.event_date,
+      localizacion: `${plant.country}, ${plant.state_province}, ${plant.municipality}, ${plant.locality}`,
       nombreVernaculo: plant.vernacular_name,
-      habito: plant.habit,
+      habito: plant.plant_habit,
       estadoReproductivo: plant.reproductive_state,
-      altitud: plant.altitude,
+      altitud: plant.minimum_elevation_in_meters,
       coordenadas: {
-        latitud: plant.latitude,
-        longitud: plant.longitude
+        latitud: plant.decimal_latitude,
+        longitud: plant.decimal_longitude
       },
       observaciones: plant.observations,
       views: plant.views + 1,
@@ -268,15 +269,15 @@ const create = async (req, res) => {
     }
 
     const {
-      // Información básica y taxonómica
+      // Cols 36-50: Taxonomía
       scientific_name,
       common_name,
       vernacular_name,
       family,
       genus,
-      species,
-      author,
-      infraspecific_epithet,
+      specific_epithet,           // Col 46 · specificEpithet (antes: species)
+      scientific_name_authorship, // Col 37 · scientificNameAuthorship (antes: author)
+      infraspecific_epithet,      // Col 47
       taxonomic_status,
       taxon_rank,
       taxon_remarks,
@@ -289,51 +290,55 @@ const create = async (req, res) => {
       subfamily,
       subgenus,
 
-      // Herbario e identificación
-      herbarium_number,
+      // Cols 8-9: Espécimen
+      catalog_number,   // Col 8 · catalogNumber (antes: herbarium_number)
+      record_number,    // Col 9 · recordNumber (antes: collector_number)
+
+      // Identificación
       determination_date,
       determined_by,
-      identified_by,
-      date_identified,
+      identified_by,    // Col 32 · identifiedBy
+      date_identified,  // Col 33 · dateIdentified
+      updated_by,       // Col 34 · updatedBy
+      date_updated,     // Col 35 · dateUpdated
       type_status,
 
-      // Información institucional
+      // Cols 4-7: Institución
       institution_code,
       institution_id,
       collection_code,
       collection_id,
-      geodetic_datum,
+      geodetic,         // Col 31 · geodeticDatum (antes: geodetic_datum)
 
-      // Darwin Core - Registro
+      // Cols 1-3: Registro Darwin Core
       occurrence_id,
       basis_of_record,
       record_type,
 
-      // Colección
-      collector_name,
-      collector_number,
+      // Cols 10-20: Colección
+      recorded_by,      // Col 10 · recordedBy (antes: collector_name)
       additional_collectors,
-      collection_date,
-      field_number,
-      field_notes,
+      event_date,       // Col 17 · eventDate (antes: collection_date)
+      field_number,     // Col 19 · fieldNumber
+      field_notes,      // Col 20 · fieldNotes
       organism_quantity,
       organism_quantity_type,
       life_stage,
-      preparation,
+      preparations,     // Col 14 · preparations (antes: preparation)
       disposition,
       sampling_protocol,
 
-      // Ubicación geográfica
+      // Cols 21-31: Ubicación
       country,
-      department,
-      county,
-      municipality,
-      specific_location,
-      latitude,
-      longitude,
-      latitude_sexagesimal,
-      longitude_sexagesimal,
-      altitude,
+      state_province,   // Col 22 · stateProvince (antes: department)
+      county,           // Col 23 · county (municipio)
+      municipality,     // Col 24 · municipality (vereda/centro poblado)
+      locality,         // Col 25 · locality (antes: specific_location)
+      decimal_latitude,             // Col 27 · decimalLatitude (antes: latitude)
+      decimal_longitude,            // Col 29 · decimalLongitude (antes: longitude)
+      decimal_latitude_sexagesimal, // Col 28 (antes: latitude_sexagesimal)
+      decimal_longitude_sexagesimal,// Col 30 (antes: longitude_sexagesimal)
+      minimum_elevation_in_meters,  // Col 26 · minimumElevationInMeters (antes: altitude)
       coordinate_uncertainty,
       georeferenced_by,
 
@@ -344,8 +349,8 @@ const create = async (req, res) => {
       abundance,
       reproductive_state,
 
-      // Descripción morfológica
-      habit,
+      // Morfología
+      plant_habit,      // (antes: habit)
       height_min,
       height_max,
       description,
@@ -365,29 +370,27 @@ const create = async (req, res) => {
       observations,
       notes,
 
-      // Actualización y proyecto
-      updated_by,
-      date_updated,
+      // Cols 51-52: Registro digital
       project,
       photo_record
     } = plantData;
 
     const insertQuery = `
       INSERT INTO plants (
-        scientific_name, common_name, vernacular_name, family, genus, species, author,
+        scientific_name, common_name, vernacular_name, family, genus, specific_epithet, scientific_name_authorship,
         infraspecific_epithet, taxonomic_status, taxon_rank, taxon_remarks,
         kingdom, phylum, class_name, order_name, subfamily, subgenus,
-        herbarium_number, determination_date, determined_by, identified_by, date_identified, type_status,
-        institution_code, institution_id, collection_code, collection_id, geodetic_datum,
+        catalog_number, determination_date, determined_by, identified_by, date_identified, type_status,
+        institution_code, institution_id, collection_code, collection_id, geodetic,
         occurrence_id, basis_of_record, record_type,
-        collector_name, collector_number, additional_collectors, collection_date,
+        recorded_by, record_number, additional_collectors, event_date,
         field_number, field_notes, organism_quantity, organism_quantity_type,
-        life_stage, preparation, disposition, sampling_protocol,
-        country, department, county, municipality, specific_location,
-        latitude, longitude, latitude_sexagesimal, longitude_sexagesimal,
-        altitude, coordinate_uncertainty, georeferenced_by,
+        life_stage, preparations, disposition, sampling_protocol,
+        country, state_province, county, municipality, locality,
+        decimal_latitude, decimal_longitude, decimal_latitude_sexagesimal, decimal_longitude_sexagesimal,
+        minimum_elevation_in_meters, coordinate_uncertainty, georeferenced_by,
         habitat, substrate, associated_species, abundance, reproductive_state,
-        habit, height_min, height_max, description, distinguishing_features,
+        plant_habit, height_min, height_max, description, distinguishing_features,
         flower_color, fruit_color, leaf_characteristics,
         uses, care_instructions, conservation_status, status, featured,
         observations, notes, updated_by, date_updated, project, photo_record,
@@ -418,40 +421,39 @@ const create = async (req, res) => {
     const tempScientificName = scientific_name || 'Espécimen sin clasificar';
 
     const values = [
-      tempScientificName, common_name, vernacular_name, family, genus, species, author,
+      tempScientificName, common_name, vernacular_name, family, genus, specific_epithet, scientific_name_authorship,
       infraspecific_epithet, taxonomic_status || 'accepted', taxon_rank || 'species', taxon_remarks,
       kingdom || 'Plantae', phylum || 'Magnoliophyta', class_name || 'Equisetopsida', order_name, subfamily, subgenus,
-      herbarium_number, determination_date, determined_by, identified_by, date_identified, type_status || 'none',
-      institution_code || 'Instituto Tecnológico del Putumayo (ITP)', institution_id || '800.247.940', collection_code || 'HEAA', collection_id, geodetic_datum || 'WGS84',
+      catalog_number, determination_date, determined_by, identified_by, date_identified, type_status || 'none',
+      institution_code || 'Instituto Tecnológico del Putumayo (ITP)', institution_id || '800.247.940', collection_code || 'HEAA', collection_id, geodetic || 'WGS84',
       occurrence_id, basis_of_record, record_type,
-      collector_name, collector_number, additional_collectors, collection_date,
+      recorded_by, record_number, additional_collectors, event_date,
       field_number, field_notes, organism_quantity, organism_quantity_type,
-      life_stage, preparation, disposition, sampling_protocol,
-      country || 'Colombia', department, county, municipality, specific_location,
-      latitude, longitude, latitude_sexagesimal, longitude_sexagesimal,
-      altitude, coordinate_uncertainty, georeferenced_by,
+      life_stage, preparations, disposition, sampling_protocol,
+      country || 'Colombia', state_province, county, municipality, locality,
+      decimal_latitude, decimal_longitude, decimal_latitude_sexagesimal, decimal_longitude_sexagesimal,
+      minimum_elevation_in_meters, coordinate_uncertainty, georeferenced_by,
       habitat, substrate, associated_species, abundance, reproductive_state,
-      habit, height_min, height_max, description, distinguishing_features,
+      plant_habit, height_min, height_max, description, distinguishing_features,
       flower_color, fruit_color, leaf_characteristics,
       uses, care_instructions, conservation_status || 'NE', status, featured || false,
       observations, notes, updated_by, date_updated, project, photo_record,
       user?.id
     ];
 
-    // Antes de insertar: verificar unicidad de herbarium_number con manejo de legacy soft-delete
-    if (herbarium_number) {
+    // Verificar unicidad de catalog_number con manejo de legacy soft-delete
+    if (catalog_number) {
       const [conflict] = await db.query(
-        'SELECT id, status FROM plants WHERE herbarium_number = ?',
-        [herbarium_number]
+        'SELECT id, status FROM plants WHERE catalog_number = ?',
+        [catalog_number]
       );
       if (conflict.length > 0) {
         if (conflict[0].status === 'deleted') {
-          // Registro de borrado antiguo (soft-delete) → purgar para liberar el número
           await db.query('DELETE FROM plant_images WHERE plant_id = ?', [conflict[0].id]);
           await db.query('DELETE FROM plants WHERE id = ?', [conflict[0].id]);
-          logger.info(`Purgado registro soft-deleted con herbarium_number=${herbarium_number} (ID ${conflict[0].id})`);
+          logger.info(`Purgado registro soft-deleted con catalog_number=${catalog_number} (ID ${conflict[0].id})`);
         } else {
-          const err = new Error('El número de catálogo ya está en uso por otro espécimen activo. Cada especímen debe tener un número único en la colección (estándar Darwin Core / Index Herbariorum).');
+          const err = new Error('El número de catálogo ya está en uso por otro espécimen activo. Cada espécimen debe tener un número único en la colección (estándar Darwin Core · catalogNumber).');
           err.statusCode = 409;
           throw err;
         }
@@ -522,7 +524,7 @@ const create = async (req, res) => {
 
     if (error.code === 'ER_DUP_ENTRY') {
       statusCode = 409;
-      if (error.message.includes('herbarium_number')) {
+      if (error.message.includes('catalog_number')) {
         errorMessage = 'El número de catálogo ya está registrado. Usa uno diferente o edita el espécimen existente.';
       } else {
         errorMessage = 'Ya existe un registro con estos datos. Verifique que no haya duplicados.';
@@ -609,22 +611,40 @@ const update = async (firstArg, secondArg) => {
       abundance: ['rare', 'occasional', 'frequent', 'abundant'],
     };
 
-    // Columnas válidas de la tabla plants (whitelist contra columnas inexistentes)
+    // Columnas válidas de la tabla plants — nombres DwC snake_case (whitelist)
     const VALID_COLUMNS = new Set([
-      'scientific_name','common_name','vernacular_name','family','genus','species','author',
-      'infraspecific_epithet','taxonomic_status','taxon_rank','taxon_remarks','kingdom','phylum',
-      'class_name','order_name','subfamily','subgenus','herbarium_number','determination_date',
-      'determined_by','identified_by','date_identified','type_status','institution_code',
-      'institution_id','collection_code','collection_id','geodetic_datum','occurrence_id',
-      'basis_of_record','record_type','collector_name','collector_number','additional_collectors',
-      'collection_date','field_number','field_notes','organism_quantity','organism_quantity_type',
-      'life_stage','preparation','disposition','sampling_protocol','country','department','county',
-      'municipality','specific_location','latitude','longitude','latitude_sexagesimal',
-      'longitude_sexagesimal','altitude','coordinate_uncertainty','georeferenced_by','habitat',
-      'substrate','associated_species','abundance','reproductive_state','habit','height_min',
-      'height_max','description','distinguishing_features','flower_color','fruit_color',
-      'leaf_characteristics','uses','care_instructions','conservation_status','status','featured',
-      'observations','notes','additional_remarks','updated_by','date_updated','project','photo_record',
+      // Taxonomía
+      'scientific_name','common_name','vernacular_name','family','genus',
+      'specific_epithet','scientific_name_authorship',
+      'infraspecific_epithet','taxonomic_status','taxon_rank','taxon_remarks',
+      'kingdom','phylum','class_name','order_name','subfamily','subgenus',
+      // Espécimen / herbario
+      'catalog_number','record_number','determination_date','determined_by',
+      'identified_by','date_identified','updated_by','date_updated','type_status',
+      // Institución
+      'institution_code','institution_id','collection_code','collection_id','geodetic',
+      // Registro DwC
+      'occurrence_id','basis_of_record','record_type',
+      // Colección
+      'recorded_by','additional_collectors','event_date',
+      'field_number','field_notes','organism_quantity','organism_quantity_type',
+      'life_stage','preparations','disposition','sampling_protocol',
+      // Ubicación
+      'country','state_province','county','municipality','locality',
+      'decimal_latitude','decimal_longitude',
+      'decimal_latitude_sexagesimal','decimal_longitude_sexagesimal',
+      'minimum_elevation_in_meters','coordinate_uncertainty','georeferenced_by',
+      // Ecología
+      'habitat','substrate','associated_species','abundance','reproductive_state',
+      // Morfología
+      'plant_habit','height_min','height_max','description','distinguishing_features',
+      'flower_color','fruit_color','leaf_characteristics',
+      // Uso y conservación
+      'uses','care_instructions','conservation_status',
+      // Sistema
+      'status','featured','observations','notes','additional_remarks',
+      // Proyecto
+      'project','photo_record',
     ]);
 
     // Columnas NOT NULL: nunca se actualizan a null (se saltan si el valor es null)

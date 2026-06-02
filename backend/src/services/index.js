@@ -135,20 +135,16 @@ const services = {
   // ===============================
   // SERVICIOS DE SUGERENCIAS
   // ===============================
-  'suggestions.getAll': suggestionsController.getAll,
-  'suggestions.getById': suggestionsController.getById,
-  'suggestions.create': suggestionsController.create,
-  'suggestions.update': suggestionsController.update,
-  'suggestions.delete': suggestionsController.delete,
-  'suggestions.approve': suggestionsController.approve,
-  'suggestions.reject': suggestionsController.reject,
-  'suggestions.getByStatus': suggestionsController.getByStatus,
-  'suggestions.getByUser': suggestionsController.getByUser,
-  'suggestions.addComment': suggestionsController.addComment,
-  'suggestions.getComments': suggestionsController.getComments,
+  'suggestions.getAll':      suggestionsController.getAll,
+  'suggestions.getById':     suggestionsController.getById,
+  'suggestions.create':      suggestionsController.create,
+  'suggestions.update':      suggestionsController.update,
+  'suggestions.updateStatus':suggestionsController.update,
+  'suggestions.approve':     suggestionsController.approve,
+  'suggestions.reject':      suggestionsController.reject,
   'suggestions.countUnread': suggestionsController.countUnread,
-  // Alias para compatibilidad con el frontend
-  'suggestions.updateStatus': suggestionsController.update,
+  'suggestions.vote':        suggestionsController.vote,
+  'suggestions.getStats':    suggestionsController.getStats,
 
   // ===============================
   // SERVICIOS DE UPLOADS

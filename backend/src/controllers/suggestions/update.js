@@ -9,7 +9,7 @@ const update = async (data, user) => {
     if (!id) throw new Error('ID de sugerencia requerido');
     if (!status) throw new Error('Estado de sugerencia requerido');
 
-    const validStatuses = ['pending', 'in_review', 'approved', 'rejected'];
+    const validStatuses = ['pending', 'in_review', 'approved', 'rejected', 'implemented'];
     if (!validStatuses.includes(status)) {
       throw new Error(`Estado inválido: ${status}. Válidos: ${validStatuses.join(', ')}`);
     }

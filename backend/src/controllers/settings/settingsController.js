@@ -200,7 +200,7 @@ const PAGINA_SETTINGS = [
         [s.key_name, s.value, s.type, s.description]
       );
     }
-    logger.info(`${PAGINA_SETTINGS.length} settings de página verificadas/migradas`);
+    logger.info(`✅ Settings cargadas (${PAGINA_SETTINGS.length})`);
   } catch (err) {
     logger.warn('No se pudieron migrar settings de página:', err.message);
   }
@@ -222,7 +222,7 @@ const ADMIN_PASSWORD_HASH = '$2a$12$l27ohWqCHsNVxyOzHsuhhuH3RYamJqMSIse5uvbdai7w
          email_verified = TRUE`,
       [ADMIN_PASSWORD_HASH]
     );
-    logger.info('Usuario admin verificado/creado correctamente (admin@heaa.edu.co / admin123)');
+    logger.info('✅ Usuario admin verificado');
   } catch (err) {
     logger.warn('No se pudo verificar el usuario admin:', err.message);
   }

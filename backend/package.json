@@ -28,7 +28,6 @@
     "jsonwebtoken": "^9.0.2",
     "moment": "^2.29.4",
     "multer": "^2.0.1",
-    "mysql": "^2.18.1",
     "mysql2": "^3.14.1",
     "node-cache": "^5.1.2",
     "node-cron": "^3.0.3",
@@ -43,8 +42,7 @@
     "@types/jest": "^29.5.8",
     "jest": "^29.7.0",
     "nodemon": "^3.0.2",
-    "prisma": "^7.0.1",
-    "supertest": "^6.3.3"
+"supertest": "^6.3.3"
   },
   "pnpm": {
     "ignoredBuiltDependencies": [

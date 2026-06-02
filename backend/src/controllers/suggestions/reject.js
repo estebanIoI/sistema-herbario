@@ -1,83 +1,52 @@
-// src/controllers/suggestions/reject.js
 const db = require('../../config/database');
 const logger = require('../../utils/logger');
 
-/**
- * Rechazar una sugerencia
- * @param {Object} data - Datos de la solicitud
- * @param {Object} user - Información del usuario autenticado
- * @returns {Object} Resultado de la operación
- */
 const reject = async (data, user) => {
-  try {
-    const { id, notes } = data;
-    
-    console.log(`🔴 Rechazando sugerencia #${id} por usuario: ${user?.name || 'desconocido'}`);
-    
-    if (!id) {
-      throw new Error('ID de sugerencia requerido');
-    }
-    
-    if (!user || user.role !== 'admin') {
-      logger.warn(`Usuario sin permisos intentó rechazar sugerencia: ${user?.email || 'anónimo'}`);
-      throw new Error('Se requieren permisos de administrador');
-    }
+  const { id, notes } = data;
 
-    // Actualizar el estado de la sugerencia en la base de datos
-    const now = new Date();
-    
-    // Primero verificamos que la sugerencia existe
-    const [existingSuggestion] = await db.query(
-      'SELECT * FROM suggestions WHERE id = ?', 
-      [id]
-    );
-    
-    if (existingSuggestion.length === 0) {
-      throw new Error(`Sugerencia #${id} no encontrada`);
-    }
-    
-    // Actualizamos el estado de la sugerencia
-    const [updateResult] = await db.query(
-      `UPDATE suggestions 
-       SET status = 'rejected', 
-           assigned_to = ?, 
-           resolved_at = ?,
-           updated_at = ?
-       WHERE id = ?`,
-      [user.id, now, now, id]
-    );
-    
-    if (updateResult.affectedRows === 0) {
-      throw new Error(`Error al actualizar sugerencia #${id}`);
-    }
-    
-    // Obtenemos la sugerencia actualizada para devolver en la respuesta
-    const [updatedSuggestion] = await db.query(
-      'SELECT * FROM suggestions WHERE id = ?', 
-      [id]
-    );
-    
-    // Registro de actividad
-    logger.info(`Sugerencia #${id} rechazada por ${user.name} (${user.email})`);
-    
-    return {
-      success: true,
-      message: `Sugerencia #${id} rechazada correctamente`,
-      suggestion: {
-        id: parseInt(id),
-        status: 'rejected',
-        reviewed_by: user.id,
-        reviewed_at: now.toISOString(),
-        notes: notes || '',
-        // Incluimos datos adicionales de la sugerencia actualizada
-        ...updatedSuggestion[0]
-      }
-    };
-    
-  } catch (error) {
-    logger.error(`Error al rechazar sugerencia: ${error.message}`);
-    throw error;
+  if (!id) throw new Error('ID de sugerencia requerido');
+  if (!user || user.role !== 'admin') throw new Error('Se requieren permisos de administrador');
+
+  const [existing] = await db.query('SELECT * FROM suggestions WHERE id = ?', [id]);
+  if (!existing.length) throw new Error(`Sugerencia #${id} no encontrada`);
+
+  const now = new Date();
+
+  let attachments = {};
+  if (existing[0].attachments) {
+    try {
+      attachments = typeof existing[0].attachments === 'string'
+        ? JSON.parse(existing[0].attachments)
+        : existing[0].attachments;
+    } catch { /* ignorar */ }
   }
+  if (notes) attachments.admin_notes = notes;
+
+  await db.query(
+    `UPDATE suggestions
+     SET status = 'rejected', assigned_to = ?, resolved_at = ?, updated_at = ?,
+         attachments = ?
+     WHERE id = ?`,
+    [user.id, now, now, JSON.stringify(attachments), id]
+  );
+
+  try {
+    await db.query(
+      `INSERT INTO activity_logs (action, entity_type, entity_id, user_id, description)
+       VALUES ('suggestion_rejected', 'suggestion', ?, ?, ?)`,
+      [id, user.id, `Sugerencia #${id} rechazada por ${user.email}`]
+    );
+  } catch { /* no interrumpir por fallo de log */ }
+
+  logger.info(`Sugerencia #${id} rechazada por ${user.email}`);
+
+  return {
+    id: parseInt(id),
+    status: 'rejected',
+    reviewed_by: user.id,
+    reviewed_at: now.toISOString(),
+    admin_notes: notes || null,
+  };
 };
 
 module.exports = reject;

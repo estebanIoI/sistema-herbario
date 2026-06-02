@@ -206,3 +206,12 @@ NODE_ENV=development
 ## 📄 Licencia
 
 © 2024 Instituto Tecnológico del Putumayo - Herbario Digital HEAA
+
+
+---
+
+## Red de conexiones
+
+- Arquitectura del backend: [[backend]]
+- Deploy: [[deployment]]
+- Identidad: [[DAIMUZ]]

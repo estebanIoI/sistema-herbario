@@ -57,7 +57,7 @@ export default function SugerenciasPage() {
     hasNext: false,
     hasPrev: false
   })
-  const [summary, setSummary] = useState({ total: 0, pending: 0, approved: 0, rejected: 0 })
+  const [summary, setSummary] = useState({ total: 0, pending: 0, in_review: 0, approved: 0, rejected: 0, implemented: 0 })
   const { toast } = useToast()
   const { user, isAuthenticated } = useAuth()
 
@@ -69,12 +69,7 @@ export default function SugerenciasPage() {
   const loadSuggestions = async () => {
     setLoading(true)
     try {
-      console.log("Cargando sugerencias, página:", currentPage)
-      console.log("Estado de autenticación:", isAuthenticated, "Usuario:", user?.role)
-      
-      // Verificar si el usuario está autenticado antes de cargar
-      if (!isAuthenticated) {
-        console.error("Usuario no autenticado al cargar sugerencias")
+        if (!isAuthenticated) {
         toast({
           title: "Error de autenticación",
           description: "Debes iniciar sesión para acceder a las sugerencias",
@@ -90,8 +85,6 @@ export default function SugerenciasPage() {
         limit: 20,
         status: 'all'
       })
-
-      console.log("Respuesta de sugerencias:", response)
 
       if (response.success && response.data) {
         // Mapear los datos de la API al formato esperado por el componente
@@ -128,7 +121,6 @@ export default function SugerenciasPage() {
           })
         }
       } else {
-        console.error("Error al cargar sugerencias:", response.error)
         setSugerencias([])
         toast({
           title: "Error al cargar sugerencias",
@@ -137,7 +129,6 @@ export default function SugerenciasPage() {
         })
       }
     } catch (error) {
-      console.error("Error al cargar sugerencias:", error)
       setSugerencias([])
       toast({
         title: "Error de conexión",
@@ -152,10 +143,11 @@ export default function SugerenciasPage() {
   // Función para mapear estados de la API a los estados del componente
   const mapApiStatus = (status?: string) => {
     switch (status) {
-      case 'pending': return 'nueva'
-      case 'in_review': return 'revisada'
-      case 'approved': return 'aprobada'
-      case 'rejected': return 'rechazada'
+      case 'pending':     return 'nueva'
+      case 'in_review':   return 'revisada'
+      case 'approved':    return 'aprobada'
+      case 'rejected':    return 'rechazada'
+      case 'implemented': return 'implementada'
       default: return status || 'nueva'
     }
   }
@@ -163,7 +155,6 @@ export default function SugerenciasPage() {
   // Función para cambiar el estado de una sugerencia
   const handleChangeStatus = async (id: number, status: string) => {
     try {
-      console.log(`Cambiando estado de sugerencia ${id} a ${status}`);
       let response;
       
       switch (status) {
@@ -202,7 +193,6 @@ export default function SugerenciasPage() {
         })
       }
     } catch (error) {
-      console.error("Error al actualizar estado:", error)
       toast({
         title: "Error",
         description: "Ocurrió un error al actualizar el estado",
@@ -253,10 +243,12 @@ export default function SugerenciasPage() {
   }
 
   const estadisticas = {
-    total: summary.total || pagination.total,
-    nuevas: summary.pending,
-    revisadas: sugerencias.filter((s) => s.estado === "revisada").length,
-    aprobadas: summary.approved,
+    total:       summary.total || pagination.total,
+    nuevas:      summary.pending,
+    revisadas:   summary.in_review,
+    aprobadas:   summary.approved,
+    rechazadas:  summary.rejected,
+    implementadas: summary.implemented,
   }
 
   return (

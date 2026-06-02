@@ -10,13 +10,10 @@ const dbConfig = {
   database: process.env.DB_NAME || 'herbario_heaa',
   port: parseInt(process.env.DB_PORT) || 3306,
   
-  // Configuraciones adicionales para optimización
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  acquireTimeout: 60000,
-  timeout: 60000,
-  reconnect: true,
+  connectTimeout: 10000,
   
   // Configuraciones de charset para soporte completo de UTF-8
   charset: 'utf8mb4',
@@ -32,13 +29,11 @@ const pool = mysql.createPool(dbConfig);
 const testConnection = async () => {
   try {
     const connection = await pool.getConnection();
-    logger.info('✅ Conexión a MySQL establecida exitosamente');
-    logger.info(`🗄️ Base de datos: ${dbConfig.database} en ${dbConfig.host}:${dbConfig.port}`);
     connection.release();
+    logger.info(`✅ MySQL conectado — ${dbConfig.database}@${dbConfig.host}:${dbConfig.port}`);
     return true;
   } catch (error) {
-    logger.error('❌ Error al conectar con MySQL:', error.message);
-    logger.error('🔧 Verifica la configuración de base de datos en .env');
+    logger.error(`❌ MySQL no disponible: ${error.message}`);
     return false;
   }
 };

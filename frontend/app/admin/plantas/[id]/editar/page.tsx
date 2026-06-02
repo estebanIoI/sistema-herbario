@@ -53,66 +53,89 @@ export default function EditarPlantaPage() {
     }
   }, [])
   
-  // Form state - usando nombres de campos que existen en la BD
+  // Form state - nombres Darwin Core (DwC snake_case)
   const [formData, setFormData] = useState({
-    // Información taxonómica
+    // Taxonomía (cols 36-50)
     scientific_name: '',
     common_name: '',
     vernacular_name: '',
     family: '',
     genus: '',
-    species: '',
-    author: '',
+    specific_epithet: '',           // Col 46 · specificEpithet
+    scientific_name_authorship: '', // Col 37 · scientificNameAuthorship
     infraspecific_epithet: '',
     taxonomic_status: 'accepted',
-    
-    // Información del herbario
-    herbarium_number: '',
-    determination_date: '',
+    taxon_rank: 'species',
+    taxon_remarks: '',
+    kingdom: 'Plantae',
+    phylum: 'Magnoliophyta',
+    class_name: 'Equisetopsida',
+    order_name: '',
+    subfamily: '',
+    subgenus: '',
+    // Espécimen (cols 8-9)
+    catalog_number: '',   // Col 8 · catalogNumber
+    record_number: '',    // Col 9 · recordNumber
+    // Identificación (cols 32-35)
+    identified_by: '',
+    date_identified: '',
     determined_by: '',
+    determination_date: '',
+    updated_by: '',
+    date_updated: '',
     type_status: 'none',
-    
-    // Información de colección
-    collector_name: '',
-    collector_number: '',
+    // Colección (cols 10-20)
+    recorded_by: '',      // Col 10 · recordedBy
     additional_collectors: '',
-    collection_date: '',
-    
-    // Información geográfica
+    event_date: '',       // Col 17 · eventDate
+    organism_quantity: '',
+    organism_quantity_type: '',
+    life_stage: '',
+    preparations: '',     // Col 14 · preparations
+    disposition: '',
+    sampling_protocol: '',
+    field_number: '',
+    field_notes: '',
+    // Ubicación (cols 21-31)
     country: 'Colombia',
-    department: '',
-    municipality: '',
-    specific_location: '',
-    latitude: '',
-    longitude: '',
-    altitude: '',
+    state_province: '',   // Col 22 · stateProvince
+    county: '',           // Col 23 · county (municipio)
+    municipality: '',     // Col 24 · municipality (vereda)
+    locality: '',         // Col 25 · locality
+    decimal_latitude: '',             // Col 27
+    decimal_latitude_sexagesimal: '', // Col 28
+    decimal_longitude: '',            // Col 29
+    decimal_longitude_sexagesimal: '',// Col 30
+    minimum_elevation_in_meters: '',  // Col 26
     coordinate_uncertainty: '',
     georeferenced_by: '',
-    
-    // Información ecológica
+    // Ecología
     habitat: '',
     substrate: '',
     associated_species: '',
     abundance: '',
     reproductive_state: '',
-    
-    // Descripción morfológica
-    habit: '',
+    // Morfología
+    plant_habit: '',  // (antes: habit)
     height_min: '',
     height_max: '',
     description: '',
     distinguishing_features: '',
-    
-    // Información de uso
+    flower_color: '',
+    fruit_color: '',
+    leaf_characteristics: '',
+    // Uso y conservación
     uses: '',
     care_instructions: '',
     conservation_status: 'NE',
-    
-    // Información del sistema
+    // Sistema
     status: 'draft',
     featured: false,
     observations: '',
-    notes: ''
+    notes: '',
+    // Proyecto
+    project: '',
+    photo_record: '',
   })
 
   const handleInputChange = (field: string, value: string) => {
@@ -271,66 +294,89 @@ export default function EditarPlantaPage() {
       if (response.success && response.data) {
         const plant = response.data
         
-        // Mapear los datos de la API al formato del formulario usando nombres reales de BD
+        // Mapear datos de la API al formulario — nombres Darwin Core
         setFormData({
-          // Información taxonómica
+          // Taxonomía
           scientific_name: plant.scientific_name || '',
           common_name: plant.common_name || '',
           vernacular_name: plant.vernacular_name || '',
           family: plant.family || '',
           genus: plant.genus || '',
-          species: plant.species || '',
-          author: plant.author || '',
+          specific_epithet: plant.specific_epithet || '',
+          scientific_name_authorship: plant.scientific_name_authorship || '',
           infraspecific_epithet: plant.infraspecific_epithet || '',
           taxonomic_status: plant.taxonomic_status || 'accepted',
-          
-          // Información del herbario
-          herbarium_number: plant.herbarium_number || '',
-          determination_date: plant.determination_date || '',
+          taxon_rank: plant.taxon_rank || 'species',
+          taxon_remarks: plant.taxon_remarks || '',
+          kingdom: plant.kingdom || 'Plantae',
+          phylum: plant.phylum || 'Magnoliophyta',
+          class_name: plant.class_name || 'Equisetopsida',
+          order_name: plant.order_name || '',
+          subfamily: plant.subfamily || '',
+          subgenus: plant.subgenus || '',
+          // Espécimen
+          catalog_number: plant.catalog_number || '',
+          record_number: plant.record_number || '',
+          // Identificación
+          identified_by: plant.identified_by || '',
+          date_identified: plant.date_identified || '',
           determined_by: plant.determined_by || '',
+          determination_date: plant.determination_date || '',
+          updated_by: plant.updated_by || '',
+          date_updated: plant.date_updated || '',
           type_status: plant.type_status || 'none',
-          
-          // Información de colección
-          collector_name: plant.collector_name || '',
-          collector_number: plant.collector_number || '',
+          // Colección
+          recorded_by: plant.recorded_by || '',
           additional_collectors: plant.additional_collectors || '',
-          collection_date: plant.collection_date || '',
-          
-          // Información geográfica
+          event_date: plant.event_date || '',
+          organism_quantity: plant.organism_quantity || '',
+          organism_quantity_type: plant.organism_quantity_type || '',
+          life_stage: plant.life_stage || '',
+          preparations: plant.preparations || '',
+          disposition: plant.disposition || '',
+          sampling_protocol: plant.sampling_protocol || '',
+          field_number: plant.field_number || '',
+          field_notes: plant.field_notes || '',
+          // Ubicación
           country: plant.country || 'Colombia',
-          department: plant.department || '',
+          state_province: plant.state_province || '',
+          county: plant.county || '',
           municipality: plant.municipality || '',
-          specific_location: plant.specific_location || '',
-          latitude: plant.latitude || '',
-          longitude: plant.longitude || '',
-          altitude: plant.altitude || '',
+          locality: plant.locality || '',
+          decimal_latitude: plant.decimal_latitude || '',
+          decimal_latitude_sexagesimal: plant.decimal_latitude_sexagesimal || '',
+          decimal_longitude: plant.decimal_longitude || '',
+          decimal_longitude_sexagesimal: plant.decimal_longitude_sexagesimal || '',
+          minimum_elevation_in_meters: plant.minimum_elevation_in_meters || '',
           coordinate_uncertainty: plant.coordinate_uncertainty || '',
           georeferenced_by: plant.georeferenced_by || '',
-          
-          // Información ecológica
+          // Ecología
           habitat: plant.habitat || '',
           substrate: plant.substrate || '',
           associated_species: plant.associated_species || '',
           abundance: plant.abundance || '',
           reproductive_state: plant.reproductive_state || '',
-          
-          // Descripción morfológica
-          habit: plant.habit || '',
+          // Morfología
+          plant_habit: plant.plant_habit || '',
           height_min: plant.height_min || '',
           height_max: plant.height_max || '',
           description: plant.description || '',
           distinguishing_features: plant.distinguishing_features || '',
-          
-          // Información de uso
+          flower_color: plant.flower_color || '',
+          fruit_color: plant.fruit_color || '',
+          leaf_characteristics: plant.leaf_characteristics || '',
+          // Uso y conservación
           uses: plant.uses || '',
           care_instructions: plant.care_instructions || '',
           conservation_status: plant.conservation_status || 'NE',
-          
-          // Información del sistema
+          // Sistema
           status: plant.status || 'draft',
           featured: plant.featured || false,
           observations: plant.observations || '',
-          notes: plant.notes || ''
+          notes: plant.notes || '',
+          // Proyecto
+          project: plant.project || '',
+          photo_record: plant.photo_record || '',
         })
 
         // Cargar imágenes existentes
@@ -416,59 +462,89 @@ export default function EditarPlantaPage() {
         return str.trim() !== '' ? str : null
       }
 
-      // Preparar los datos para enviar - solo campos que existen en la BD
+      // Preparar datos — nombres Darwin Core
       const updateData: any = {
-        // Solo incluir campos que realmente existen en la tabla plants
+        // Taxonomía
         scientific_name: formData.scientific_name,
         common_name: formData.common_name || null,
         vernacular_name: formData.vernacular_name || null,
         family: formData.family,
         genus: formData.genus,
-        species: formData.species || null,
-        author: formData.author || null,
+        specific_epithet: formData.specific_epithet || null,
+        scientific_name_authorship: formData.scientific_name_authorship || null,
         infraspecific_epithet: formData.infraspecific_epithet || null,
         taxonomic_status: formData.taxonomic_status,
-        
-        herbarium_number: formData.herbarium_number || null,
-        determination_date: dateToNull(formData.determination_date),
+        taxon_rank: formData.taxon_rank || null,
+        taxon_remarks: formData.taxon_remarks || null,
+        kingdom: formData.kingdom || null,
+        phylum: formData.phylum || null,
+        class_name: formData.class_name || null,
+        order_name: formData.order_name || null,
+        subfamily: formData.subfamily || null,
+        subgenus: formData.subgenus || null,
+        // Espécimen
+        catalog_number: formData.catalog_number || null,
+        record_number: formData.record_number || null,
+        // Identificación
+        identified_by: formData.identified_by || null,
+        date_identified: dateToNull(formData.date_identified),
         determined_by: formData.determined_by || null,
+        determination_date: dateToNull(formData.determination_date),
+        updated_by: formData.updated_by || null,
+        date_updated: dateToNull(formData.date_updated),
         type_status: formData.type_status,
-        
-        collector_name: formData.collector_name || null,
-        collector_number: formData.collector_number || null,
+        // Colección
+        recorded_by: formData.recorded_by || null,
         additional_collectors: formData.additional_collectors || null,
-        collection_date: dateToNull(formData.collection_date),
-        
+        event_date: dateToNull(formData.event_date),
+        organism_quantity: formData.organism_quantity || null,
+        organism_quantity_type: formData.organism_quantity_type || null,
+        life_stage: formData.life_stage || null,
+        preparations: formData.preparations || null,
+        disposition: formData.disposition || null,
+        sampling_protocol: formData.sampling_protocol || null,
+        field_number: formData.field_number || null,
+        field_notes: formData.field_notes || null,
+        // Ubicación
         country: formData.country,
-        department: formData.department || null,
+        state_province: formData.state_province || null,
+        county: formData.county || null,
         municipality: formData.municipality || null,
-        specific_location: formData.specific_location || null,
-        latitude: numToNull(formData.latitude),
-        longitude: numToNull(formData.longitude),
-        altitude: numToNull(formData.altitude),
+        locality: formData.locality || null,
+        decimal_latitude: numToNull(formData.decimal_latitude),
+        decimal_longitude: numToNull(formData.decimal_longitude),
+        decimal_latitude_sexagesimal: formData.decimal_latitude_sexagesimal || null,
+        decimal_longitude_sexagesimal: formData.decimal_longitude_sexagesimal || null,
+        minimum_elevation_in_meters: numToNull(formData.minimum_elevation_in_meters),
         coordinate_uncertainty: numToNull(formData.coordinate_uncertainty),
         georeferenced_by: formData.georeferenced_by || null,
-        
+        // Ecología
         habitat: formData.habitat || null,
         substrate: formData.substrate || null,
         associated_species: formData.associated_species || null,
         abundance: formData.abundance || null,
         reproductive_state: formData.reproductive_state || null,
-        
-        habit: formData.habit || null,
+        // Morfología
+        plant_habit: formData.plant_habit || null,
         height_min: numToNull(formData.height_min),
         height_max: numToNull(formData.height_max),
         description: formData.description || null,
         distinguishing_features: formData.distinguishing_features || null,
-        
+        flower_color: formData.flower_color || null,
+        fruit_color: formData.fruit_color || null,
+        leaf_characteristics: formData.leaf_characteristics || null,
+        // Uso y conservación
         uses: formData.uses || null,
         care_instructions: formData.care_instructions || null,
         conservation_status: formData.conservation_status,
-        
+        // Sistema
         status: formData.status,
         featured: formData.featured,
         observations: formData.observations || null,
-        notes: formData.notes || null
+        notes: formData.notes || null,
+        // Proyecto
+        project: formData.project || null,
+        photo_record: formData.photo_record || null,
       }
 
       // Remover campos undefined o que causen problemas

@@ -5,9 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { ArrowRight, Leaf, Search, Database, Star, Globe, X, ChevronLeft, ChevronRight } from "lucide-react"
-import dynamic from "next/dynamic"
 
-const GlobePolaroids = dynamic(() => import("@/components/globe-polaroids"), { ssr: false })
 import { useEffect, useState } from "react"
 import { apiService } from "@/lib/api"
 
@@ -320,7 +318,7 @@ export default function Home() {
               )}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <div className="max-w-2xl mx-auto w-full">
 
               {/* ── Columna izquierda: carrusel de publicaciones / servicios ── */}
               {hero2Items.length > 0 && (
@@ -408,15 +406,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* ── Columna derecha: globo con polaroids de plantas ── */}
-              <div className="flex flex-col items-center gap-4">
-                <div className="w-full max-w-[480px]">
-                  <GlobePolaroids plants={featuredPlants} speed={0.003} />
-                </div>
-                <p className="text-sm text-muted-foreground text-center max-w-xs">
-                  Arrastra el globo para explorar las regiones de recolección
-                </p>
-              </div>
 
             </div>
           </div>
