@@ -26,7 +26,9 @@ const PAGINA_SETTINGS = [
   { key_name: 'hero_slide2_url',     value: '',   type: 'string',  description: 'URL de redirección al hacer clic en slide 2' },
   { key_name: 'hero_slide3_image',   value: '',   type: 'string',  description: 'Imagen slide 3 del carrusel hero' },
   { key_name: 'hero_slide3_url',     value: '',   type: 'string',  description: 'URL de redirección al hacer clic en slide 3' },
-  { key_name: 'hero_slide_interval', value: '5',  type: 'number',  description: 'Intervalo del carrusel hero 1 en segundos (mínimo 2)' },
+  { key_name: 'hero_slide_interval', value: '5',    type: 'number',  description: 'Intervalo del carrusel hero 1 en segundos (mínimo 2)' },
+  { key_name: 'hero_stats_enabled', value: 'true', type: 'boolean', description: 'Mostrar contadores de Plantas, Familias y Géneros en el hero' },
+  { key_name: 'hero_image_fit',     value: 'cover', type: 'string', description: 'Presentación de imagen hero: cover (expandida) o contain (enmarcada)' },
   // Hero 2 — Publicaciones y Servicios
   { key_name: 'hero2_enabled',       value: 'true',                  type: 'boolean', description: 'Mostrar sección Publicaciones y Servicios' },
   { key_name: 'hero2_title',         value: 'Publicaciones y Servicios', type: 'string', description: 'Título de la sección hero 2' },

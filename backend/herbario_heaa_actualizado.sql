@@ -422,6 +422,7 @@ INSERT INTO settings (key_name, value, type, category, description, is_public) V
 ('hero_slide3_url',   '', 'string', 'pagina', 'URL de redirección slide 3', TRUE),
 ('hero_slide_interval', '5', 'number', 'pagina', 'Intervalo del carrusel hero en segundos (mínimo 2)', TRUE),
 ('hero_stats_enabled', 'true', 'boolean', 'pagina', 'Mostrar contadores de Plantas, Familias y Géneros en el hero', TRUE),
+('hero_image_fit',     'cover', 'string', 'pagina', 'Presentación de imagen hero: cover (expandida) o contain (enmarcada)', TRUE),
 ('hero2_enabled',   'true', 'boolean', 'pagina', 'Mostrar sección Publicaciones y Servicios', TRUE),
 ('hero2_title',     'Publicaciones y Servicios', 'string', 'pagina', 'Título de la sección hero 2', TRUE),
 ('hero2_subtitle',  '', 'string', 'pagina', 'Subtítulo de la sección hero 2', TRUE),

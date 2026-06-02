@@ -88,6 +88,7 @@ export default function PaginaAdminPage() {
     banner: 'Banner de anuncio',
     hero_text: 'Hero — Texto y botones',
     hero_stats: 'Hero — Contadores de estadísticas',
+    hero_image_fit: 'Hero — Presentación de imagen',
     hero_slides: 'Hero — Carrusel de imágenes',
     hero2: 'Publicaciones y Servicios',
     features: 'Sección Características (Hero 3)',
@@ -506,6 +507,61 @@ export default function PaginaAdminPage() {
                 )}
                 <div className="pt-2">
                   <SaveBtn sectionId="hero_stats" keys={["hero_stats_enabled"]} />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Ajuste de imagen */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Presentación de la imagen</CardTitle>
+                <CardDescription>
+                  Define cómo se muestra la imagen del carrusel en el hero (aplica solo en pantallas medianas y grandes)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Opción: Expandida (cover) */}
+                  <button
+                    type="button"
+                    onClick={() => set("hero_image_fit", "cover")}
+                    className={`rounded-lg border-2 p-4 text-left transition-all ${
+                      (settings.hero_image_fit ?? "cover") === "cover"
+                        ? "border-green-600 bg-green-50"
+                        : "border-muted hover:border-green-400"
+                    }`}
+                  >
+                    <div className="h-16 rounded bg-gradient-to-r from-green-800 to-green-600 mb-3 overflow-hidden relative">
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-full h-full bg-green-700 opacity-60" />
+                        <span className="absolute text-[10px] text-white font-medium">imagen cubre todo</span>
+                      </div>
+                    </div>
+                    <p className="text-sm font-medium">Expandida</p>
+                    <p className="text-xs text-muted-foreground">La imagen se recorta para cubrir toda la sección</p>
+                  </button>
+
+                  {/* Opción: Enmarcada (contain) */}
+                  <button
+                    type="button"
+                    onClick={() => set("hero_image_fit", "contain")}
+                    className={`rounded-lg border-2 p-4 text-left transition-all ${
+                      settings.hero_image_fit === "contain"
+                        ? "border-green-600 bg-green-50"
+                        : "border-muted hover:border-green-400"
+                    }`}
+                  >
+                    <div className="h-16 rounded bg-green-950 mb-3 flex items-center justify-center overflow-hidden">
+                      <div className="h-12 w-24 bg-green-700 rounded flex items-center justify-center">
+                        <span className="text-[10px] text-white font-medium">imagen completa</span>
+                      </div>
+                    </div>
+                    <p className="text-sm font-medium">Enmarcada</p>
+                    <p className="text-xs text-muted-foreground">La imagen se muestra completa; el contenedor se adapta a su tamaño</p>
+                  </button>
+                </div>
+                <div className="pt-2">
+                  <SaveBtn sectionId="hero_image_fit" keys={["hero_image_fit"]} />
                 </div>
               </CardContent>
             </Card>

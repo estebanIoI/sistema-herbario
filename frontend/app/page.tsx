@@ -91,6 +91,7 @@ export default function Home() {
   if (!rawSlides[0].image && heroBg) rawSlides[0].image = heroBg
   const slides = rawSlides.filter(s => s.image)
   const slideInterval = Math.max(2000, Number(cfg.heroSlideInterval ?? 5) * 1000)
+  const heroImageFit  = String(cfg.heroImageFit ?? "cover") as "cover" | "contain"
 
   // Hero 2 — Publicaciones / Servicios
   const showHero2  = cfg.hero2Enabled !== false
@@ -250,7 +251,11 @@ export default function Home() {
             </div>
 
             {/* ── Desktop: carrusel con overlay ──────────────────────────── */}
-            <div className="hidden sm:block relative w-full h-[75vh] min-h-[500px] max-h-[800px]">
+            <div className={`hidden sm:block relative w-full ${
+              heroImageFit === "contain"
+                ? ""                                              /* contain: altura natural */
+                : "h-[75vh] min-h-[500px] max-h-[800px]"        /* cover: altura fija */
+            }`}>
               {slides.map((slide, i) => {
                 const isActive = i === currentSlide
                 const imgEl = (
@@ -258,23 +263,31 @@ export default function Home() {
                   <img
                     src={slide.image}
                     alt={`Imagen ${i + 1}`}
-                    className="w-full h-full object-cover select-none"
+                    className={`select-none ${
+                      heroImageFit === "contain"
+                        ? "w-full h-auto object-contain block"   /* imagen completa */
+                        : "w-full h-full object-cover"           /* expande al contenedor */
+                    }`}
                   />
                 )
                 return (
                   <div
                     key={i}
-                    className={`absolute inset-0 transition-opacity duration-700 ${isActive ? 'opacity-100 z-0' : 'opacity-0 -z-10'}`}
+                    className={`transition-opacity duration-700 ${
+                      heroImageFit === "contain"
+                        ? (isActive ? "opacity-100 relative" : "opacity-0 absolute inset-0")
+                        : (isActive ? "opacity-100 z-0 absolute inset-0" : "opacity-0 -z-10 absolute inset-0")
+                    }`}
                   >
                     {slide.url
-                      ? <Link href={slide.url} className="block w-full h-full">{imgEl}</Link>
+                      ? <Link href={slide.url} className={heroImageFit === "contain" ? "block w-full" : "block w-full h-full"}>{imgEl}</Link>
                       : imgEl
                     }
                   </div>
                 )
               })}
               <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/45 to-transparent pointer-events-none z-10" />
-              <div className="absolute inset-0 flex items-center z-20 pointer-events-none">
+              <div className={`${heroImageFit === "contain" ? "absolute inset-0" : "absolute inset-0"} flex items-center z-20 pointer-events-none`}>
                 <div className="container mx-auto px-4 pointer-events-auto">
                   <HeroText />
                 </div>
