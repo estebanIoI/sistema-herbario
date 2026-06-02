@@ -120,14 +120,14 @@ const getStats = async (data, user) => {
 
     const topDepartments = await safeQuery(async () => {
       const [rows] = await db.query(
-        'SELECT department, COUNT(*) AS count FROM plants GROUP BY department ORDER BY count DESC LIMIT 5'
+        'SELECT state_province AS department, COUNT(*) AS count FROM plants GROUP BY state_province ORDER BY count DESC LIMIT 5'
       );
       return rows;
     }, []);
 
     const topCollectors = await safeQuery(async () => {
       const [rows] = await db.query(
-        'SELECT collector_name AS collector, COUNT(*) AS count FROM plants GROUP BY collector_name ORDER BY count DESC LIMIT 5'
+        'SELECT recorded_by AS collector, COUNT(*) AS count FROM plants GROUP BY recorded_by ORDER BY count DESC LIMIT 5'
       );
       return rows;
     }, []);
@@ -154,11 +154,11 @@ const getStats = async (data, user) => {
     try {
       [elevationStats] = await db.query(`
         SELECT CASE
-                 WHEN altitude IS NULL THEN 'No especificada'
-                 WHEN altitude < 500   THEN '0-500m'
-                 WHEN altitude < 1000  THEN '500-1000m'
-                 WHEN altitude < 2000  THEN '1000-2000m'
-                 WHEN altitude < 3000  THEN '2000-3000m'
+                 WHEN minimum_elevation_in_meters IS NULL THEN 'No especificada'
+                 WHEN minimum_elevation_in_meters < 500   THEN '0-500m'
+                 WHEN minimum_elevation_in_meters < 1000  THEN '500-1000m'
+                 WHEN minimum_elevation_in_meters < 2000  THEN '1000-2000m'
+                 WHEN minimum_elevation_in_meters < 3000  THEN '2000-3000m'
                  ELSE '3000m+'
                END AS elevation_range,
                COUNT(*) AS count

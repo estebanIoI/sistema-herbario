@@ -78,10 +78,7 @@ RATE_LIMIT_WINDOW_MS=300000
 - **Cloudinary**: `CLOUDINARY_API_KEY` y `CLOUDINARY_API_SECRET` vacíos → subida de imágenes falla
 - **Dominio real**: usar nip.io mientras no haya DNS propio configurado
 - `controllers/dashboard/dashboardController.js` → `getPlantsByLocation` usa `department`; `getTopCollectors` usa `collector_name` — activos pero con bugs DwC silenciosos
-- `controllers/dashboard/getStats.js` → usa `department`, `collector_name`, `altitude` — idem
-- `controllers/plants/locationsController.js` → usa nombres viejos DwC en todos sus métodos
-- `controllers/plants/taxonomyController.js` → `getSpeciesByGenus` usa `species`
-- `app/admin/plantas/page.tsx` — DWC_FIELD_MAP usa nombres viejos: columnas vacías en tabla admin
+- `app/admin/plantas/[id]/editar/page.tsx` — recarga de planta existente usa `getById` que devuelve formato diferente al esperado en algunos campos del estado DwC (pendiente verificar)
 - `app/admin/plantas/[id]/editar/page.tsx` — recarga de planta existente usa `getById` que devuelve formato diferente al esperado en algunos campos del estado DwC (pendiente verificar)
 - Sistema completo de subida de archivos — funciona con Cloudinary configurado
 - Redis cache activo en Docker pero backend usa node-cache
@@ -103,14 +100,13 @@ RATE_LIMIT_WINDOW_MS=300000
 - `getPublic.js` convierte snake_case → camelCase: `hero_stats_enabled` → `heroStatsEnabled`.
 - `PAGINA_SETTINGS` en `settingsController.js` corre al startup — si un setting nuevo NO está en esa lista, no se auto-crea. Hay que agregarlo manualmente o via migrate-all.sql.
 
-### DwC — columnas aún con nombres viejos en código
-```
-dashboard/getStats.js          → department, collector_name, altitude
-dashboard/dashboardController  → department (getPlantsByLocation), collector_name (getTopCollectors)
-plants/locationsController.js  → department, specific_location, altitude, latitude, longitude
-plants/taxonomyController.js   → species (getSpeciesByGenus)
-admin/plantas/page.tsx         → DWC_FIELD_MAP nombres viejos
-```
+### DwC — columnas corregidas (2026-06-02)
+Todos los archivos con nombres viejos fueron corregidos:
+- `dashboard/getStats.js` ✓ (state_province, recorded_by, minimum_elevation_in_meters)
+- `dashboard/dashboardController.js` ✓ (state_province, recorded_by)
+- `plants/locationsController.js` ✓ (state_province, locality, decimal_latitude, decimal_longitude, minimum_elevation_in_meters)
+- `plants/taxonomyController.js` ✓ (specific_epithet)
+- `admin/plantas/page.tsx` ✓ (catalog_number, recorded_by, event_date, state_province, specific_epithet, scientific_name_authorship, locality, decimal_latitude, decimal_longitude, decimal_latitude_sexagesimal, decimal_longitude_sexagesimal, minimum_elevation_in_meters, preparations, plant_habit, geodetic, record_number)
 
 ### Acceso BD en producción
 ```bash

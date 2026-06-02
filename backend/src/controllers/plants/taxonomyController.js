@@ -88,9 +88,9 @@ const getSpeciesByGenus = async (req, res) => {
     const { genus, family } = req.body.params;
 
     let query = `
-      SELECT DISTINCT species as name, COUNT(*) as plant_count
-      FROM plants 
-      WHERE status = 'published' AND genus = ? AND species IS NOT NULL
+      SELECT DISTINCT specific_epithet as name, COUNT(*) as plant_count
+      FROM plants
+      WHERE status = 'published' AND genus = ? AND specific_epithet IS NOT NULL
     `;
     let params = [genus];
 
@@ -99,7 +99,7 @@ const getSpeciesByGenus = async (req, res) => {
       params.push(family);
     }
 
-    query += ` GROUP BY species ORDER BY species ASC`;
+    query += ` GROUP BY specific_epithet ORDER BY specific_epithet ASC`;
 
     const [species] = await db.query(query, params);
 
@@ -222,11 +222,11 @@ const autocompleteSpecies = async (req, res) => {
     const { query = '', genus = '', family = '', limit = 10 } = req.body.params || {};
 
     let searchQuery = `
-      SELECT DISTINCT species as name, genus, family, COUNT(*) as plant_count
-      FROM plants 
-      WHERE status = 'published' 
-      AND species IS NOT NULL 
-      AND species LIKE ?
+      SELECT DISTINCT specific_epithet as name, genus, family, COUNT(*) as plant_count
+      FROM plants
+      WHERE status = 'published'
+      AND specific_epithet IS NOT NULL
+      AND specific_epithet LIKE ?
     `;
     let params = [`%${query}%`];
 
@@ -241,8 +241,8 @@ const autocompleteSpecies = async (req, res) => {
     }
 
     searchQuery += `
-      GROUP BY species, genus, family 
-      ORDER BY plant_count DESC, species ASC
+      GROUP BY specific_epithet, genus, family
+      ORDER BY plant_count DESC, specific_epithet ASC
       LIMIT ?
     `;
     params.push(parseInt(limit));
@@ -276,17 +276,17 @@ const autocompleteSpecies = async (req, res) => {
 const getTaxonomyTree = async (req, res) => {
   try {
     const query = `
-      SELECT 
+      SELECT
         family,
         genus,
-        species,
+        specific_epithet AS species,
         COUNT(*) as plant_count
-      FROM plants 
-      WHERE status = 'published' 
-      AND family IS NOT NULL 
+      FROM plants
+      WHERE status = 'published'
+      AND family IS NOT NULL
       AND genus IS NOT NULL
-      GROUP BY family, genus, species
-      ORDER BY family, genus, species
+      GROUP BY family, genus, specific_epithet
+      ORDER BY family, genus, specific_epithet
     `;
 
     const [results] = await db.query(query);
@@ -359,8 +359,8 @@ const validateTaxonomy = async (req, res) => {
     // Verificar si la combinación taxonómica existe
     const [existing] = await db.query(`
       SELECT COUNT(*) as count
-      FROM plants 
-      WHERE family = ? AND genus = ? AND species = ?
+      FROM plants
+      WHERE family = ? AND genus = ? AND specific_epithet = ?
       AND status = 'published'
     `, [family, genus, species]);
 
@@ -387,7 +387,7 @@ const validateTaxonomy = async (req, res) => {
         suggestions: {
           similarFamilies: familyExists[0].count === 0 ? await getSimilarNames('family', family) : [],
           similarGenera: genusExists[0].count === 0 ? await getSimilarNames('genus', genus, family) : [],
-          similarSpecies: existing[0].count === 0 ? await getSimilarNames('species', species, family, genus) : []
+          similarSpecies: existing[0].count === 0 ? await getSimilarNames('specific_epithet', species, family, genus) : []
         }
       }
     });

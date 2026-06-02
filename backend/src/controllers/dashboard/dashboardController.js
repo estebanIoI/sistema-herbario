@@ -219,7 +219,7 @@ const getPlantsByFamily = async (data, user) => {
 const getPlantsByLocation = async (data, user) => {
   try {
     const { type = 'department', limit = 10 } = data || {};
-    const field = type === 'municipality' ? 'municipality' : 'department';
+    const field = type === 'municipality' ? 'municipality' : 'state_province';
 
     const [locations] = await db.query(`
       SELECT ${field} AS location, COUNT(*) AS count
@@ -292,12 +292,12 @@ const getTopCollectors = async (data, user) => {
 
     const [collectors] = await db.query(`
       SELECT
-        collector_name AS name,
+        recorded_by AS name,
         COUNT(*) AS plant_count,
         COUNT(DISTINCT family) AS families_count
       FROM plants
-      WHERE status = 'published' AND collector_name IS NOT NULL
-      GROUP BY collector_name
+      WHERE status = 'published' AND recorded_by IS NOT NULL
+      GROUP BY recorded_by
       ORDER BY plant_count DESC
       LIMIT ?
     `, [parseInt(limit)]);

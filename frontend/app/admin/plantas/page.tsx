@@ -21,15 +21,15 @@ import { apiService } from "@/lib/api"
 
 interface Plant {
   id: number
-  herbarium_number?: string
+  catalog_number?: string
   scientific_name: string
   common_name?: string
   vernacular_name?: string
   family?: string
   genus?: string
-  collector_name?: string
-  collection_date?: string
-  department?: string
+  recorded_by?: string
+  event_date?: string
+  state_province?: string
   status: "published" | "draft" | "review" | "deleted"
   views?: number
   created_at: string
@@ -47,45 +47,45 @@ const COL_MAP: Record<string, string> = {
   occurrenceid: "occurrence_id", basisofrecord: "basis_of_record", type: "record_type",
   institutioncode: "institution_code", institutionid: "institution_id",
   collectioncode: "collection_code", collectionid: "collection_id",
-  catalognumber: "herbarium_number", "número de catálogo": "herbarium_number",
-  "numero de catalogo": "herbarium_number", "n° catálogo": "herbarium_number",
-  recordnumber: "collector_number", "número de registro": "collector_number",
-  recordedby: "collector_name", "registrado por": "collector_name", colector: "collector_name",
+  catalognumber: "catalog_number", "número de catálogo": "catalog_number",
+  "numero de catalogo": "catalog_number", "n° catálogo": "catalog_number",
+  recordnumber: "record_number", "número de registro": "record_number",
+  recordedby: "recorded_by", "registrado por": "recorded_by", colector: "recorded_by",
   identifiedby: "identified_by", "identificado por": "identified_by",
   dateidentified: "date_identified", "fecha de identificación": "date_identified",
-  geodeticdatum: "geodetic_datum", kingdom: "kingdom", reino: "kingdom",
+  geodeticdatum: "geodetic", kingdom: "kingdom", reino: "kingdom",
   phylum: "phylum", filo: "phylum", class: "class_name", clase: "class_name",
   order: "order_name", orden: "order_name", family: "family", familia: "family",
   subfamily: "subfamily", subfamilia: "subfamily", genus: "genus",
   "género": "genus", genero: "genus", subgenus: "subgenus", "subgénero": "subgenus",
-  specificepithet: "species", "epíteto específico": "species", epiteto: "species",
+  specificepithet: "specific_epithet", "epíteto específico": "specific_epithet", epiteto: "specific_epithet",
   infraspecificepithet: "infraspecific_epithet", taxonrank: "taxon_rank",
   scientificname: "scientific_name", "nombre científico": "scientific_name",
   "nombre cientifico": "scientific_name", "nombre_cientifico": "scientific_name",
-  scientificnameauthorship: "author", autoría: "author", autoria: "author",
+  scientificnameauthorship: "scientific_name_authorship", autoría: "scientific_name_authorship", autoria: "scientific_name_authorship",
   vernacularname: "vernacular_name", "nombre vernáculo": "vernacular_name",
   commonname: "common_name", "nombre común": "common_name", "nombre comun": "common_name",
   taxonremarks: "taxon_remarks", country: "country", "país": "country", pais: "country",
-  stateprovince: "department", departamento: "department",
+  stateprovince: "state_province", departamento: "state_province",
   county: "county", municipio: "county",
   municipality: "municipality", "centro poblado": "municipality",
-  locality: "specific_location", localidad: "specific_location",
-  minimumelevationinmeters: "altitude", altitud: "altitude", "elevación": "altitude",
-  habitat: "habitat", decimallatitude: "latitude", latitud: "latitude",
-  "latitud decimal": "latitude", decimallongitude: "longitude", longitud: "longitude",
-  "longitud decimal": "longitude", "latitud sexagesimal": "latitude_sexagesimal",
-  "longitud sexagesimal": "longitude_sexagesimal",
+  locality: "locality", localidad: "locality",
+  minimumelevationinmeters: "minimum_elevation_in_meters", altitud: "minimum_elevation_in_meters", "elevación": "minimum_elevation_in_meters",
+  habitat: "habitat", decimallatitude: "decimal_latitude", latitud: "decimal_latitude",
+  "latitud decimal": "decimal_latitude", decimallongitude: "decimal_longitude", longitud: "decimal_longitude",
+  "longitud decimal": "decimal_longitude", "latitud sexagesimal": "decimal_latitude_sexagesimal",
+  "longitud sexagesimal": "decimal_longitude_sexagesimal",
   organismquantity: "organism_quantity", cantidad: "organism_quantity",
   lifestage: "life_stage", "etapa de vida": "life_stage",
-  preparation: "preparation", preparación: "preparation", preparacion: "preparation",
+  preparation: "preparations", preparación: "preparations", preparacion: "preparations",
   disposition: "disposition", disposición: "disposition", disposicion: "disposition",
   samplingprotocol: "sampling_protocol", "protocolo de muestreo": "sampling_protocol",
-  eventdate: "collection_date", "fecha de colección": "collection_date",
-  "fecha de coleccion": "collection_date", "fecha colección": "collection_date",
+  eventdate: "event_date", "fecha de colección": "event_date",
+  "fecha de coleccion": "event_date", "fecha colección": "event_date",
   fieldnumber: "field_number", "número de campo": "field_number",
   fieldnotes: "field_notes", "notas de campo": "field_notes",
   description: "description", descripción: "description", descripcion: "description",
-  uses: "uses", usos: "uses", habit: "habit", "hábito": "habit", habito: "habit",
+  uses: "uses", usos: "uses", habit: "plant_habit", "hábito": "plant_habit", habito: "plant_habit",
   flowercolor: "flower_color", "color de la flor": "flower_color",
   fruitcolor: "fruit_color", "color del fruto": "fruit_color",
   "características de hojas": "leaf_characteristics", additionalremarks: "additional_remarks",
@@ -536,7 +536,7 @@ export default function AdminPlantas() {
                       />
                     </TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">
-                      {p.herbarium_number ?? <span className="opacity-40">—</span>}
+                      {p.catalog_number ?? <span className="opacity-40">—</span>}
                     </TableCell>
                     <TableCell>
                       <p className="italic text-sm font-medium leading-tight">{p.scientific_name}</p>
@@ -550,13 +550,13 @@ export default function AdminPlantas() {
                       {p.family ?? <span className="opacity-40">—</span>}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground max-w-[11rem] truncate">
-                      {p.collector_name ?? <span className="opacity-40">—</span>}
+                      {p.recorded_by ?? <span className="opacity-40">—</span>}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {fmtDate(p.collection_date)}
+                      {fmtDate(p.event_date)}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {p.department ?? <span className="opacity-40">—</span>}
+                      {p.state_province ?? <span className="opacity-40">—</span>}
                     </TableCell>
                     <TableCell>
                       {p.status === "published" ? (
@@ -848,8 +848,8 @@ export default function AdminPlantas() {
                       <h2 className="text-xl font-semibold italic leading-tight">
                         {selectedPlant.scientific_name}
                       </h2>
-                      {selectedPlant.author && (
-                        <span className="text-sm text-muted-foreground not-italic">{selectedPlant.author}</span>
+                      {selectedPlant.scientific_name_authorship && (
+                        <span className="text-sm text-muted-foreground not-italic">{selectedPlant.scientific_name_authorship}</span>
                       )}
                       <span className={`inline-flex text-[11px] font-medium px-2 py-0.5 rounded-full border ${STATUS_CFG[selectedPlant.status]?.cls ?? STATUS_CFG.draft.cls}`}>
                         {STATUS_CFG[selectedPlant.status]?.label ?? 'Borrador'}
@@ -861,20 +861,20 @@ export default function AdminPlantas() {
                       </p>
                     )}
                     <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
-                      {selectedPlant.herbarium_number && (
+                      {selectedPlant.catalog_number && (
                         <span className="font-mono bg-muted px-1.5 py-0.5 rounded">
-                          #{selectedPlant.herbarium_number}
+                          #{selectedPlant.catalog_number}
                         </span>
                       )}
                       {selectedPlant.family && <span>{selectedPlant.family}</span>}
-                      {selectedPlant.department && (
+                      {selectedPlant.state_province && (
                         <span className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />{selectedPlant.department}
+                          <MapPin className="h-3 w-3" />{selectedPlant.state_province}
                         </span>
                       )}
-                      {selectedPlant.collection_date && (
+                      {selectedPlant.event_date && (
                         <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />{fmtDate(selectedPlant.collection_date)}
+                          <Calendar className="h-3 w-3" />{fmtDate(selectedPlant.event_date)}
                         </span>
                       )}
                       <span className="flex items-center gap-1">
@@ -944,7 +944,7 @@ export default function AdminPlantas() {
                   {/* ── Registro ───────────────────────────────────────────── */}
                   <TabsContent value="registro" className="m-0 p-6">
                     <FieldGrid>
-                      <Field label="Nº Catálogo / Herbario" value={selectedPlant.herbarium_number} mono />
+                      <Field label="Nº Catálogo / Herbario" value={selectedPlant.catalog_number} mono />
                       <Field label="occurrence ID" value={selectedPlant.occurrence_id} mono />
                       <Field label="Tipo de base" value={selectedPlant.basis_of_record} />
                       <Field label="Tipo de registro" value={selectedPlant.record_type} />
@@ -952,7 +952,7 @@ export default function AdminPlantas() {
                       <Field label="ID Institución" value={selectedPlant.institution_id} />
                       <Field label="Código colección" value={selectedPlant.collection_code} />
                       <Field label="ID Colección" value={selectedPlant.collection_id} />
-                      <Field label="Datum Geodésico" value={selectedPlant.geodetic_datum} />
+                      <Field label="Datum Geodésico" value={selectedPlant.geodetic} />
                       <Field label="Tipo de espécimen" value={selectedPlant.type_status} />
                       <Field label="Identificado por" value={selectedPlant.identified_by} />
                       <Field label="Fecha identificación" value={fmtDate(selectedPlant.date_identified)} />
@@ -973,7 +973,7 @@ export default function AdminPlantas() {
                   <TabsContent value="taxonomia" className="m-0 p-6">
                     <FieldGrid>
                       <Field label="Nombre científico" value={selectedPlant.scientific_name} italic wide />
-                      <Field label="Autor" value={selectedPlant.author} />
+                      <Field label="Autor" value={selectedPlant.scientific_name_authorship} />
                       <Field label="Nombre común" value={selectedPlant.common_name} />
                       <Field label="Nombre vernáculo" value={selectedPlant.vernacular_name} />
                       <div className="col-span-2"><Separator /></div>
@@ -985,7 +985,7 @@ export default function AdminPlantas() {
                       <Field label="Subfamilia" value={selectedPlant.subfamily} />
                       <Field label="Género" value={selectedPlant.genus} italic />
                       <Field label="Subgénero" value={selectedPlant.subgenus} italic />
-                      <Field label="Epíteto específico" value={selectedPlant.species} italic />
+                      <Field label="Epíteto específico" value={selectedPlant.specific_epithet} italic />
                       <Field label="Epíteto infraespecífico" value={selectedPlant.infraspecific_epithet} italic />
                       <Field label="Categoría taxonómica" value={selectedPlant.taxon_rank} />
                       <Field label="Estado taxonómico" value={selectedPlant.taxonomic_status} />
@@ -996,16 +996,16 @@ export default function AdminPlantas() {
                   {/* ── Colección ──────────────────────────────────────────── */}
                   <TabsContent value="coleccion" className="m-0 p-6">
                     <FieldGrid>
-                      <Field label="Colector principal" value={selectedPlant.collector_name} />
-                      <Field label="Nº colector" value={selectedPlant.collector_number} mono />
+                      <Field label="Colector principal" value={selectedPlant.recorded_by} />
+                      <Field label="Nº colector" value={selectedPlant.record_number} mono />
                       <Field label="Colectores adicionales" value={selectedPlant.additional_collectors} wide />
-                      <Field label="Fecha de colección" value={fmtDate(selectedPlant.collection_date)} />
+                      <Field label="Fecha de colección" value={fmtDate(selectedPlant.event_date)} />
                       <Field label="Nº de campo" value={selectedPlant.field_number} mono />
                       <Field label="Notas de campo" value={selectedPlant.field_notes} wide />
                       <Field label="Cantidad organismo" value={selectedPlant.organism_quantity} />
                       <Field label="Tipo de cantidad" value={selectedPlant.organism_quantity_type} />
                       <Field label="Etapa de vida" value={selectedPlant.life_stage} />
-                      <Field label="Tipo de preparación" value={selectedPlant.preparation} />
+                      <Field label="Tipo de preparación" value={selectedPlant.preparations} />
                       <Field label="Disposición" value={selectedPlant.disposition} />
                       <Field label="Protocolo de muestreo" value={selectedPlant.sampling_protocol} />
                     </FieldGrid>
@@ -1015,16 +1015,16 @@ export default function AdminPlantas() {
                   <TabsContent value="ubicacion" className="m-0 p-6">
                     <FieldGrid>
                       <Field label="País" value={selectedPlant.country} />
-                      <Field label="Departamento" value={selectedPlant.department} />
+                      <Field label="Departamento" value={selectedPlant.state_province} />
                       <Field label="Municipio / County" value={selectedPlant.county} />
                       <Field label="Centro poblado" value={selectedPlant.municipality} />
-                      <Field label="Localidad específica" value={selectedPlant.specific_location} wide />
+                      <Field label="Localidad específica" value={selectedPlant.locality} wide />
                       <div className="col-span-2"><Separator /></div>
-                      <Field label="Latitud decimal" value={selectedPlant.latitude?.toString()} mono />
-                      <Field label="Longitud decimal" value={selectedPlant.longitude?.toString()} mono />
-                      <Field label="Latitud sexagesimal" value={selectedPlant.latitude_sexagesimal} mono />
-                      <Field label="Longitud sexagesimal" value={selectedPlant.longitude_sexagesimal} mono />
-                      <Field label="Altitud (m)" value={selectedPlant.altitude?.toString()} />
+                      <Field label="Latitud decimal" value={selectedPlant.decimal_latitude?.toString()} mono />
+                      <Field label="Longitud decimal" value={selectedPlant.decimal_longitude?.toString()} mono />
+                      <Field label="Latitud sexagesimal" value={selectedPlant.decimal_latitude_sexagesimal} mono />
+                      <Field label="Longitud sexagesimal" value={selectedPlant.decimal_longitude_sexagesimal} mono />
+                      <Field label="Altitud (m)" value={selectedPlant.minimum_elevation_in_meters?.toString()} />
                       <Field label="Incertidumbre coord. (m)" value={selectedPlant.coordinate_uncertainty?.toString()} />
                       <Field label="Georeferenciado por" value={selectedPlant.georeferenced_by} />
                       <div className="col-span-2"><Separator /></div>
@@ -1039,7 +1039,7 @@ export default function AdminPlantas() {
                   {/* ── Características ────────────────────────────────────── */}
                   <TabsContent value="caracteristicas" className="m-0 p-6">
                     <FieldGrid>
-                      <Field label="Hábito de crecimiento" value={selectedPlant.habit} />
+                      <Field label="Hábito de crecimiento" value={selectedPlant.plant_habit} />
                       <Field label="Altura mínima (m)" value={selectedPlant.height_min?.toString()} />
                       <Field label="Altura máxima (m)" value={selectedPlant.height_max?.toString()} />
                       <Field label="DAP (cm)" value={selectedPlant.dbh?.toString()} />

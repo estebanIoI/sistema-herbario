@@ -13,11 +13,11 @@ const logger = require('../../utils/logger');
 const getDepartments = async (req, res) => {
   try {
     const query = `
-      SELECT DISTINCT department as name, COUNT(*) as plant_count
-      FROM plants 
-      WHERE status = 'published' AND department IS NOT NULL
-      GROUP BY department 
-      ORDER BY department ASC
+      SELECT DISTINCT state_province as name, COUNT(*) as plant_count
+      FROM plants
+      WHERE status = 'published' AND state_province IS NOT NULL
+      GROUP BY state_province
+      ORDER BY state_province ASC
     `;
 
     const [departments] = await db.query(query);
@@ -51,9 +51,9 @@ const getMunicipalitiesByDepartment = async (req, res) => {
 
     const query = `
       SELECT DISTINCT municipality as name, COUNT(*) as plant_count
-      FROM plants 
-      WHERE status = 'published' AND department = ? AND municipality IS NOT NULL
-      GROUP BY municipality 
+      FROM plants
+      WHERE status = 'published' AND state_province = ? AND municipality IS NOT NULL
+      GROUP BY municipality
       ORDER BY municipality ASC
     `;
 
@@ -86,14 +86,14 @@ const getMunicipalitiesByDepartment = async (req, res) => {
 const getMunicipalities = async (req, res) => {
   try {
     const query = `
-      SELECT DISTINCT 
-        municipality as name, 
-        department,
+      SELECT DISTINCT
+        municipality as name,
+        state_province AS department,
         COUNT(*) as plant_count
-      FROM plants 
+      FROM plants
       WHERE status = 'published' AND municipality IS NOT NULL
-      GROUP BY municipality, department 
-      ORDER BY department, municipality ASC
+      GROUP BY municipality, state_province
+      ORDER BY state_province, municipality ASC
     `;
 
     const [municipalities] = await db.query(query);
@@ -127,20 +127,20 @@ const getCollectionSites = async (req, res) => {
     const { department = '', municipality = '', limit = 20 } = req.body.params || {};
 
     let query = `
-      SELECT DISTINCT 
-        specific_location as name,
-        department,
+      SELECT DISTINCT
+        locality as name,
+        state_province AS department,
         municipality,
         COUNT(*) as plant_count,
-        AVG(latitude) as avg_latitude,
-        AVG(longitude) as avg_longitude
-      FROM plants 
-      WHERE status = 'published' AND specific_location IS NOT NULL
+        AVG(decimal_latitude) as avg_latitude,
+        AVG(decimal_longitude) as avg_longitude
+      FROM plants
+      WHERE status = 'published' AND locality IS NOT NULL
     `;
     let params = [];
 
     if (department) {
-      query += ` AND department = ?`;
+      query += ` AND state_province = ?`;
       params.push(department);
     }
 
@@ -150,8 +150,8 @@ const getCollectionSites = async (req, res) => {
     }
 
     query += `
-      GROUP BY specific_location, department, municipality 
-      ORDER BY plant_count DESC, specific_location ASC
+      GROUP BY locality, state_province, municipality
+      ORDER BY plant_count DESC, locality ASC
       LIMIT ?
     `;
     params.push(parseInt(limit));
@@ -195,15 +195,15 @@ const autocompleteLocations = async (req, res) => {
     // Buscar departamentos
     if (type === 'all' || type === 'department') {
       const [departments] = await db.query(`
-        SELECT DISTINCT 
-          department as name, 
+        SELECT DISTINCT
+          state_province as name,
           'department' as type,
           COUNT(*) as plant_count
-        FROM plants 
-        WHERE status = 'published' 
-        AND department IS NOT NULL 
-        AND department LIKE ?
-        GROUP BY department 
+        FROM plants
+        WHERE status = 'published'
+        AND state_province IS NOT NULL
+        AND state_province LIKE ?
+        GROUP BY state_province
         ORDER BY plant_count DESC
         LIMIT ?
       `, [`%${query}%`, Math.ceil(parseInt(limit) / 2)]);
@@ -219,16 +219,16 @@ const autocompleteLocations = async (req, res) => {
     // Buscar municipios
     if (type === 'all' || type === 'municipality') {
       const [municipalities] = await db.query(`
-        SELECT DISTINCT 
-          municipality as name, 
-          department,
+        SELECT DISTINCT
+          municipality as name,
+          state_province AS department,
           'municipality' as type,
           COUNT(*) as plant_count
-        FROM plants 
-        WHERE status = 'published' 
-        AND municipality IS NOT NULL 
+        FROM plants
+        WHERE status = 'published'
+        AND municipality IS NOT NULL
         AND municipality LIKE ?
-        GROUP BY municipality, department 
+        GROUP BY municipality, state_province
         ORDER BY plant_count DESC
         LIMIT ?
       `, [`%${query}%`, Math.ceil(parseInt(limit) / 2)]);
@@ -269,28 +269,28 @@ const getLocationStats = async (req, res) => {
   try {
     // Estadísticas por departamento
     const [deptStats] = await db.query(`
-      SELECT 
-        department,
+      SELECT
+        state_province AS department,
         COUNT(*) as plant_count,
         COUNT(DISTINCT family) as family_count,
         COUNT(DISTINCT genus) as genus_count
-      FROM plants 
-      WHERE status = 'published' AND department IS NOT NULL
-      GROUP BY department 
+      FROM plants
+      WHERE status = 'published' AND state_province IS NOT NULL
+      GROUP BY state_province
       ORDER BY plant_count DESC
       LIMIT 10
     `);
 
     // Estadísticas por municipio
     const [munStats] = await db.query(`
-      SELECT 
+      SELECT
         municipality,
-        department,
+        state_province AS department,
         COUNT(*) as plant_count,
         COUNT(DISTINCT family) as family_count
-      FROM plants 
+      FROM plants
       WHERE status = 'published' AND municipality IS NOT NULL
-      GROUP BY municipality, department 
+      GROUP BY municipality, state_province
       ORDER BY plant_count DESC
       LIMIT 10
     `);
@@ -298,20 +298,20 @@ const getLocationStats = async (req, res) => {
     // Distribución altitudinal
     const [altitudeStats] = await db.query(`
       SELECT 
-        CASE 
-          WHEN altitude < 500 THEN '0-500m'
-          WHEN altitude < 1000 THEN '500-1000m'
-          WHEN altitude < 1500 THEN '1000-1500m'
-          WHEN altitude < 2000 THEN '1500-2000m'
-          WHEN altitude < 2500 THEN '2000-2500m'
-          WHEN altitude < 3000 THEN '2500-3000m'
+        CASE
+          WHEN minimum_elevation_in_meters < 500 THEN '0-500m'
+          WHEN minimum_elevation_in_meters < 1000 THEN '500-1000m'
+          WHEN minimum_elevation_in_meters < 1500 THEN '1000-1500m'
+          WHEN minimum_elevation_in_meters < 2000 THEN '1500-2000m'
+          WHEN minimum_elevation_in_meters < 2500 THEN '2000-2500m'
+          WHEN minimum_elevation_in_meters < 3000 THEN '2500-3000m'
           ELSE '3000m+'
         END as altitude_range,
         COUNT(*) as plant_count
-      FROM plants 
-      WHERE status = 'published' AND altitude IS NOT NULL
+      FROM plants
+      WHERE status = 'published' AND minimum_elevation_in_meters IS NOT NULL
       GROUP BY altitude_range
-      ORDER BY MIN(altitude)
+      ORDER BY MIN(minimum_elevation_in_meters)
     `);
 
     res.json({
@@ -343,15 +343,15 @@ const validateLocation = async (req, res) => {
     // Verificar si el departamento existe
     const [deptExists] = await db.query(`
       SELECT COUNT(*) as count
-      FROM plants 
-      WHERE department = ? AND status = 'published'
+      FROM plants
+      WHERE state_province = ? AND status = 'published'
     `, [department]);
 
     // Verificar si el municipio existe en ese departamento
     const [munExists] = await db.query(`
       SELECT COUNT(*) as count
-      FROM plants 
-      WHERE department = ? AND municipality = ? AND status = 'published'
+      FROM plants
+      WHERE state_province = ? AND municipality = ? AND status = 'published'
     `, [department, municipality]);
 
     // Verificar ubicación específica
@@ -359,8 +359,8 @@ const validateLocation = async (req, res) => {
     if (specificLocation) {
       const [locExists] = await db.query(`
         SELECT COUNT(*) as count
-        FROM plants 
-        WHERE department = ? AND municipality = ? AND specific_location = ? AND status = 'published'
+        FROM plants
+        WHERE state_province = ? AND municipality = ? AND locality = ? AND status = 'published'
       `, [department, municipality, specificLocation]);
       locationExists = locExists[0].count;
     }
@@ -372,7 +372,7 @@ const validateLocation = async (req, res) => {
         municipalityExists: munExists[0].count > 0,
         locationExists: locationExists > 0,
         suggestions: {
-          similarDepartments: deptExists[0].count === 0 ? await getSimilarLocations('department', department) : [],
+          similarDepartments: deptExists[0].count === 0 ? await getSimilarLocations('state_province', department) : [],
           similarMunicipalities: munExists[0].count === 0 ? await getSimilarLocations('municipality', municipality, department) : []
         }
       }
@@ -397,7 +397,7 @@ const getSimilarLocations = async (type, name, department = null) => {
     let params = [];
 
     if (department && type === 'municipality') {
-      query += ` AND department = ?`;
+      query += ` AND state_province = ?`;
       params.push(department);
     }
 
