@@ -168,7 +168,7 @@ coverage/
 *.db
 
 # Uploads directory (si tienes archivos subidos)
-uploads/
+/uploads/
 
 # Backup files
 *.backup
