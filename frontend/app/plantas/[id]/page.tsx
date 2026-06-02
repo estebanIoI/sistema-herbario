@@ -4,10 +4,9 @@
 import * as React from "react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ArrowLeft, MapPin, Thermometer, Droplets, Sun, MessageSquare } from "lucide-react"
+import { ArrowLeft, MapPin, MessageSquare } from "lucide-react"
 import { CloudinaryImage } from "@/components/cloudinary-image"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import PlantDataSheet from "@/components/plant-data-sheet"
 import { apiService } from "@/lib/api"
@@ -37,10 +36,6 @@ interface PlantDetail {
   nombreVernaculo?: string;
   habito?: string;
   estadoReproductivo?: string;
-  // Propiedades para las tarjetas de cuidados
-  luz?: string;
-  riego?: string;
-  temperatura?: string;
   // Campos de la API
   scientific_name?: string;
   vernacular_name?: string;
@@ -122,10 +117,6 @@ export default function PlantaDetalle({ params }: { params: Promise<RouteParams>
         const response = await apiService.getPlantById(plantId)
         
         if (response.success && response.data) {
-          // Mapear datos de la API al formato esperado por el componente
-          // Obtener datos adicionales para cuidados, si existen
-          const cuidadosData = response.data.care_instructions || {};
-          
           // Extraer datos de la estructura anidada que devuelve la API
           const data = response.data;
           const taxonomia = data.taxonomia || {};
@@ -164,17 +155,16 @@ export default function PlantaDetalle({ params }: { params: Promise<RouteParams>
             colector: coleccion.registradoPor || data.recorded_by || "N/A",
             numeroColector: data.record_number || "N/A",
             fechaColeccion: coleccion.fechaEvento || data.event_date || "N/A",
-            // Ubicación
-            localizacion: ubicacion.localidad 
-              ? `${ubicacion.pais || ""} ${ubicacion.departamento || ""} ${ubicacion.municipio || ""} ${ubicacion.localidad || ""}`.trim()
-              : `${data.country || ""} ${data.state_province || ""} ${data.municipality || ""} ${data.locality || ""}`.trim() || "N/A",
+            // Ubicación — construir con partes no vacías separadas por coma
+            localizacion: [
+              ubicacion.pais       || data.country         || "",
+              ubicacion.departamento || data.state_province || "",
+              ubicacion.municipio  || data.municipality    || "",
+              ubicacion.localidad  || data.locality        || "",
+            ].filter(Boolean).join(", ") || "N/A",
             // Características
             habito: caracteristicas.habito || data.plant_habit || "N/A",
-            estadoReproductivo: data.reproductive_condition || "N/A",
-            // Datos para tarjetas de cuidados
-            luz: cuidadosData.light || "No especificado",
-            riego: cuidadosData.watering || "No especificado",
-            temperatura: cuidadosData.temperature || "No especificado"
+            estadoReproductivo: data.reproductive_state || "N/A"
           }
           
           setPlanta(plantData)
@@ -290,56 +280,19 @@ export default function PlantaDetalle({ params }: { params: Promise<RouteParams>
                   <TabsTrigger value="cuidados">Cuidados</TabsTrigger>
                 </TabsList>
                 <TabsContent value="descripcion" className="mt-4">
-                  <p>{planta.descripcion}</p>
+                  <p className="text-sm leading-relaxed whitespace-pre-line">{planta.descripcion}</p>
                 </TabsContent>
                 <TabsContent value="habitat" className="mt-4">
                   <div className="flex items-start gap-2">
-                    <MapPin className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                    <p>{planta.habitat || "No hay información disponible sobre el hábitat"}</p>
+                    <MapPin className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
+                    <p className="text-sm leading-relaxed whitespace-pre-line">{planta.habitat}</p>
                   </div>
                 </TabsContent>
                 <TabsContent value="usos" className="mt-4">
-                  <p>{planta.usos || "No hay información disponible sobre usos"}</p>
+                  <p className="text-sm leading-relaxed whitespace-pre-line">{planta.usos}</p>
                 </TabsContent>
                 <TabsContent value="cuidados" className="mt-4">
-                  <div className="space-y-4">
-                    <p>{planta.cuidados || "No hay información disponible sobre cuidados"}</p>
-                    {/* Mostrar tarjetas de cuidados si cualquiera de los tres tiene información específica */}
-                    {(planta.luz !== "No especificado" || 
-                      planta.riego !== "No especificado" || 
-                      planta.temperatura !== "No especificado" || 
-                      planta.cuidados) && (
-                      <div className="grid grid-cols-3 gap-4">
-                        <Card>
-                          <CardHeader className="p-3">
-                            <Sun className="h-5 w-5 text-amber-500" />
-                          </CardHeader>
-                          <CardContent className="p-3 pt-0">
-                            <CardTitle className="text-sm">Luz</CardTitle>
-                            <CardDescription>{planta.luz}</CardDescription>
-                          </CardContent>
-                        </Card>
-                        <Card>
-                          <CardHeader className="p-3">
-                            <Droplets className="h-5 w-5 text-blue-500" />
-                          </CardHeader>
-                          <CardContent className="p-3 pt-0">
-                            <CardTitle className="text-sm">Riego</CardTitle>
-                            <CardDescription>{planta.riego}</CardDescription>
-                          </CardContent>
-                        </Card>
-                        <Card>
-                          <CardHeader className="p-3">
-                            <Thermometer className="h-5 w-5 text-red-500" />
-                          </CardHeader>
-                          <CardContent className="p-3 pt-0">
-                            <CardTitle className="text-sm">Temperatura</CardTitle>
-                            <CardDescription>{planta.temperatura}</CardDescription>
-                          </CardContent>
-                        </Card>
-                      </div>
-                    )}
-                  </div>
+                  <p className="text-sm leading-relaxed whitespace-pre-line">{planta.cuidados}</p>
                 </TabsContent>
               </Tabs>
             </div>
