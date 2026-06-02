@@ -558,14 +558,23 @@ export default function EditarPlantaPage() {
       const activeImages = uploadedImages.filter(img => !img.markedForDeletion)
       const imagesToDelete = uploadedImages.filter(img => img.markedForDeletion && img.isExisting)
 
-      // Agregar URLs de imágenes activas al update
-      const imageUrls = activeImages
-        .map(img => img.serverUrl || img.url)
-        .filter(url => url && !url.startsWith('blob:'))
+      // Agregar imágenes activas en el formato que espera el backend: [{url, thumbnailUrl}]
+      const imageObjects = activeImages
+        .filter(img => {
+          const url = img.serverUrl || img.url
+          return url && !url.startsWith('blob:')
+        })
+        .map(img => ({
+          url: img.serverUrl || img.url,
+          thumbnailUrl: img.thumbnailUrl || img.serverUrl || img.url
+        }))
 
-      if (imageUrls.length > 0) {
-        updateData.image_urls = JSON.stringify(imageUrls)
+      if (imageObjects.length > 0) {
+        updateData.images = imageObjects
       }
+
+      // Conservar imageUrls para el log
+      const imageUrls = imageObjects.map(img => img.url)
 
       // Agregar IDs de imágenes para asociar
       const imageIds = activeImages
