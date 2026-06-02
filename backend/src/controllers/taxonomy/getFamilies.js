@@ -42,7 +42,7 @@ const getFamilies = async (data) => {
 
         // Obtener ejemplar más reciente
         const [recentSpecimen] = await db.query(
-          'SELECT scientific_name, collection_date FROM plants WHERE family = ? ORDER BY created_at DESC LIMIT 1',
+          'SELECT scientific_name, event_date FROM plants WHERE family = ? ORDER BY created_at DESC LIMIT 1',
           [family.family]
         );
 

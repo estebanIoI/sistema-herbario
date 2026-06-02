@@ -903,9 +903,9 @@ const getFilterOptions = async (req, res) => {
   try {
     const [families] = await db.query('SELECT DISTINCT family FROM plants WHERE status = "published" AND family IS NOT NULL ORDER BY family');
     const [genera] = await db.query('SELECT DISTINCT genus FROM plants WHERE status = "published" AND genus IS NOT NULL ORDER BY genus');
-    const [departments] = await db.query('SELECT DISTINCT department FROM plants WHERE status = "published" AND department IS NOT NULL ORDER BY department');
+    const [departments] = await db.query('SELECT DISTINCT state_province AS department FROM plants WHERE status = "published" AND state_province IS NOT NULL ORDER BY state_province');
     const [municipalities] = await db.query('SELECT DISTINCT municipality FROM plants WHERE status = "published" AND municipality IS NOT NULL ORDER BY municipality');
-    const [collectors] = await db.query('SELECT DISTINCT collector_name FROM plants WHERE status = "published" AND collector_name IS NOT NULL ORDER BY collector_name');
+    const [collectors] = await db.query('SELECT DISTINCT recorded_by FROM plants WHERE status = "published" AND recorded_by IS NOT NULL ORDER BY recorded_by');
 
     res.json({
       success: true,
@@ -914,7 +914,7 @@ const getFilterOptions = async (req, res) => {
         genera: genera.map(g => ({ value: g.genus.toLowerCase(), label: g.genus })),
         departments: departments.map(d => ({ value: d.department.toLowerCase(), label: d.department })),
         municipalities: municipalities.map(m => ({ value: m.municipality.toLowerCase(), label: m.municipality })),
-        collectors: collectors.map(c => ({ value: c.collector_name.toLowerCase(), label: c.collector_name }))
+        collectors: collectors.map(c => ({ value: c.recorded_by.toLowerCase(), label: c.recorded_by }))
       }
     });
 
@@ -952,11 +952,11 @@ const advancedSearch = async (req, res) => {
             queryParams.push(`%${value}%`);
             break;
           case 'especie':
-            whereConditions.push('p.species LIKE ?');
+            whereConditions.push('p.specific_epithet LIKE ?');
             queryParams.push(`%${value}%`);
             break;
           case 'departamento':
-            whereConditions.push('p.department LIKE ?');
+            whereConditions.push('p.state_province LIKE ?');
             queryParams.push(`%${value}%`);
             break;
           case 'municipio':
@@ -968,11 +968,11 @@ const advancedSearch = async (req, res) => {
             queryParams.push(`%${value}%`);
             break;
           case 'colector':
-            whereConditions.push('p.collector_name LIKE ?');
+            whereConditions.push('p.recorded_by LIKE ?');
             queryParams.push(`%${value}%`);
             break;
           case 'numeroColector':
-            whereConditions.push('p.collector_number LIKE ?');
+            whereConditions.push('p.record_number LIKE ?');
             queryParams.push(`%${value}%`);
             break;
         }
@@ -985,9 +985,9 @@ const advancedSearch = async (req, res) => {
     const searchQuery = `
       SELECT 
         p.id, p.scientific_name as nombre, p.common_name as nombreComun,
-        p.family as familia, p.genus as genero, p.species as especie,
-        p.department as departamento, p.municipality as municipio,
-        p.collector_name as colector, p.collector_number as numeroColector,
+        p.family as familia, p.genus as genero, p.specific_epithet as especie,
+        p.state_province as departamento, p.municipality as municipio,
+        p.recorded_by as colector, p.record_number as numeroColector,
         pi.image_url as imagen, pi.thumbnail_url
       FROM plants p
       LEFT JOIN plant_images pi ON p.id = pi.plant_id AND pi.is_main = 1

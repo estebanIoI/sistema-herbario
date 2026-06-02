@@ -415,7 +415,7 @@ const getSimilarNames = async (rank, name, family = null, genus = null) => {
       params.push(family);
     }
 
-    if (genus && rank === 'species') {
+    if (genus && rank === 'specific_epithet') {
       query += ` AND genus = ?`;
       params.push(genus);
     }

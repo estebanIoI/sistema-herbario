@@ -100,13 +100,18 @@ RATE_LIMIT_WINDOW_MS=300000
 - `getPublic.js` convierte snake_case → camelCase: `hero_stats_enabled` → `heroStatsEnabled`.
 - `PAGINA_SETTINGS` en `settingsController.js` corre al startup — si un setting nuevo NO está en esa lista, no se auto-crea. Hay que agregarlo manualmente o via migrate-all.sql.
 
-### DwC — columnas corregidas (2026-06-02)
-Todos los archivos con nombres viejos fueron corregidos:
-- `dashboard/getStats.js` ✓ (state_province, recorded_by, minimum_elevation_in_meters)
+### DwC — auditoría completa 2026-06-02 (CERRADA)
+Todos los archivos del codebase usan nombres DwC correctos. Auditados y corregidos:
+- `dashboard/getStats.js` ✓
 - `dashboard/dashboardController.js` ✓ (state_province, recorded_by)
-- `plants/locationsController.js` ✓ (state_province, locality, decimal_latitude, decimal_longitude, minimum_elevation_in_meters)
-- `plants/taxonomyController.js` ✓ (specific_epithet)
-- `admin/plantas/page.tsx` ✓ (catalog_number, recorded_by, event_date, state_province, specific_epithet, scientific_name_authorship, locality, decimal_latitude, decimal_longitude, decimal_latitude_sexagesimal, decimal_longitude_sexagesimal, minimum_elevation_in_meters, preparations, plant_habit, geodetic, record_number)
+- `plants/locationsController.js` ✓ (state_province, locality, decimal_latitude/longitude, minimum_elevation_in_meters)
+- `plants/taxonomyController.js` ✓ (specific_epithet, getSimilarNames guard corregido)
+- `plants/plantsController.js` ✓ (getFilterOptions, advancedSearch, importData)
+- `plants/getAll.js` ✓ (ya estaba correcto)
+- `plants/search.js` ✓ (ya estaba correcto)
+- `taxonomy/getFamilies.js` ✓ (event_date)
+- `admin/plantas/page.tsx` ✓ (Plant interface, COL_MAP, tabla, modal detalle)
+- `admin/pagina/page.tsx` ✓ (hero carousel upload via Cloudinary)
 
 ### Acceso BD en producción
 ```bash
