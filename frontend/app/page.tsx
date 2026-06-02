@@ -142,7 +142,7 @@ export default function Home() {
         {heroTitle}
       </h1>
       <p className="text-gray-200 md:text-xl drop-shadow">{heroSubtitle}</p>
-      {!loading && (
+      {!loading && cfg.hero_stats_enabled !== "false" && (
         <div className="flex gap-6 text-green-200">
           <Stat value={stats.totalPlants.toLocaleString()} label="Plantas" />
           <Stat value={stats.totalFamilies}                label="Familias" />

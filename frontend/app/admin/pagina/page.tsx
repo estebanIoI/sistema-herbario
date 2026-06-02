@@ -87,6 +87,7 @@ export default function PaginaAdminPage() {
     general: 'Información general',
     banner: 'Banner de anuncio',
     hero_text: 'Hero — Texto y botones',
+    hero_stats: 'Hero — Contadores de estadísticas',
     hero_slides: 'Hero — Carrusel de imágenes',
     hero2: 'Publicaciones y Servicios',
     features: 'Sección Características (Hero 3)',
@@ -464,6 +465,47 @@ export default function PaginaAdminPage() {
                 </div>
                 <div className="pt-2">
                   <SaveBtn sectionId="hero_text" keys={["hero_title","hero_subtitle","hero_cta1_text","hero_cta1_url","hero_cta2_text","hero_cta2_url"]} />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Contadores de estadísticas */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Contadores de estadísticas</CardTitle>
+                <CardDescription>
+                  Muestra u oculta los contadores de Plantas, Familias y Géneros que aparecen debajo del subtítulo del hero
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <Switch
+                    id="hero_stats_enabled"
+                    checked={settings.hero_stats_enabled !== "false"}
+                    onCheckedChange={(v) => set("hero_stats_enabled", String(v))}
+                  />
+                  <Label htmlFor="hero_stats_enabled">
+                    {settings.hero_stats_enabled !== "false" ? "Contadores visibles" : "Contadores ocultos"}
+                  </Label>
+                </div>
+                {settings.hero_stats_enabled !== "false" && (
+                  <div className="flex gap-6 p-4 rounded-lg bg-green-900/20 border border-green-800/30">
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-green-300">N</p>
+                      <p className="text-xs text-green-400">Plantas</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-green-300">N</p>
+                      <p className="text-xs text-green-400">Familias</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-green-300">N</p>
+                      <p className="text-xs text-green-400">Géneros</p>
+                    </div>
+                  </div>
+                )}
+                <div className="pt-2">
+                  <SaveBtn sectionId="hero_stats" keys={["hero_stats_enabled"]} />
                 </div>
               </CardContent>
             </Card>

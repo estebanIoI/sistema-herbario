@@ -358,6 +358,17 @@ SELECT 'Stored procedures: recreados ✓' AS paso_5;
 
 
 -- ============================================================
+-- PASO 6: NUEVOS SETTINGS (agregar si no existen)
+-- ============================================================
+
+INSERT INTO settings (key_name, value, type, category, description, is_public)
+VALUES ('hero_stats_enabled', 'true', 'boolean', 'pagina', 'Mostrar contadores de Plantas, Familias y Géneros en el hero', TRUE)
+ON DUPLICATE KEY UPDATE key_name = key_name;
+
+SELECT 'Settings nuevos: aplicados ✓' AS paso_6;
+
+
+-- ============================================================
 -- VERIFICACIÓN FINAL
 -- ============================================================
 
