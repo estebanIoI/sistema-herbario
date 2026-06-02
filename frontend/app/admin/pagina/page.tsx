@@ -35,7 +35,9 @@ export default function PaginaAdminPage() {
   const [plantSearch, setPlantSearch] = useState("")
   const [togglingId, setTogglingId] = useState<number | null>(null)
   const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [uploadingSlide, setUploadingSlide] = useState<number | null>(null)
   const logoFileRef = useRef<HTMLInputElement>(null)
+  const slideFileRefs = useRef<(HTMLInputElement | null)[]>([null, null, null])
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -63,6 +65,36 @@ export default function PaginaAdminPage() {
     } finally {
       setUploadingLogo(false)
       if (logoFileRef.current) logoFileRef.current.value = ""
+    }
+  }
+
+  const handleSlideUpload = async (n: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
+    if (!validTypes.includes(file.type)) {
+      toast({ title: "Tipo de archivo no válido", description: "Usa JPG, PNG, WebP o GIF", variant: "destructive" })
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "Archivo muy grande", description: "La imagen no debe superar los 10 MB", variant: "destructive" })
+      return
+    }
+    setUploadingSlide(n)
+    try {
+      const res = await apiService.uploadImage(file, { entityType: 'hero', isTemporary: false })
+      if (res.success && res.data?.url) {
+        set(`hero_slide${n}_image`, res.data.url)
+        toast({ title: `Imagen ${n} subida`, description: "La imagen se subió a Cloudinary correctamente." })
+      } else {
+        throw new Error(res.error ?? "Error al subir")
+      }
+    } catch (err: any) {
+      toast({ title: "Error al subir la imagen", description: err.message, variant: "destructive" })
+    } finally {
+      setUploadingSlide(null)
+      const ref = slideFileRefs.current[n - 1]
+      if (ref) ref.value = ""
     }
   }
 
@@ -600,7 +632,62 @@ export default function PaginaAdminPage() {
                         Imagen {n}{n === 1 ? " (principal)" : " (opcional)"}
                       </p>
                     </div>
-                    <Field label="URL de la imagen" id={`hero_slide${n}_image`} hint={n === 1 ? "Si se deja vacía, el hero muestra un fondo degradado" : "Deja vacío para no usar este slide"}>
+
+                    {/* Vista previa + botón quitar */}
+                    {settings[`hero_slide${n}_image`] ? (
+                      <div className="relative rounded-md overflow-hidden border bg-muted">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={str(settings[`hero_slide${n}_image`])}
+                          alt={`Vista previa slide ${n}`}
+                          className="w-full h-36 object-contain"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => set(`hero_slide${n}_image`, "")}
+                          className="absolute top-1.5 right-1.5 rounded-full bg-background/80 p-1 text-muted-foreground hover:text-destructive transition-colors"
+                          title="Quitar imagen"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="rounded-md border-2 border-dashed border-border bg-background h-36 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                        <ImageLucide className="h-8 w-8 opacity-30" />
+                        <p className="text-xs">{n === 1 ? "Sin imagen — el hero usará fondo degradado" : "Slide vacío — no se mostrará"}</p>
+                      </div>
+                    )}
+
+                    {/* Subir a Cloudinary */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Subir imagen</Label>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          disabled={uploadingSlide === n}
+                          onClick={() => slideFileRefs.current[n - 1]?.click()}
+                        >
+                          {uploadingSlide === n
+                            ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Subiendo…</>
+                            : <><UploadCloud className="h-3.5 w-3.5 mr-1.5" />Subir a Cloudinary</>
+                          }
+                        </Button>
+                        <input
+                          ref={(el) => { slideFileRefs.current[n - 1] = el }}
+                          type="file"
+                          accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                          className="hidden"
+                          onChange={(e) => handleSlideUpload(n, e)}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">JPG, PNG, WebP o GIF · máx. 10 MB</p>
+                    </div>
+
+                    <Field label="O pega la URL de la imagen" id={`hero_slide${n}_image`} hint={n === 1 ? "Si se deja vacía, el hero muestra un fondo degradado" : "Deja vacío para no usar este slide"}>
                       <Input
                         id={`hero_slide${n}_image`}
                         placeholder="https://... o /imagen.jpg"
@@ -616,18 +703,6 @@ export default function PaginaAdminPage() {
                         onChange={(e) => set(`hero_slide${n}_url`, e.target.value)}
                       />
                     </Field>
-                    {/* Vista previa miniatura */}
-                    {settings[`hero_slide${n}_image`] && (
-                      <div className="rounded-md overflow-hidden border h-24 bg-muted">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={str(settings[`hero_slide${n}_image`])}
-                          alt={`Vista previa slide ${n}`}
-                          className="w-full h-full object-contain"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                        />
-                      </div>
-                    )}
                   </div>
                 ))}
 

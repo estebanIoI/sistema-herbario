@@ -14,7 +14,8 @@ import { Separator } from "@/components/ui/separator"
 import {
   Plus, Search, Edit2, Eye, EyeOff, Trash2, Globe, FileSpreadsheet,
   Loader2, CheckCircle2, Upload, ChevronLeft, ChevronRight, X,
-  AlertCircle, BookOpen, MapPin, Calendar, ImageIcon, ExternalLink, DatabaseZap
+  AlertCircle, BookOpen, MapPin, Calendar, ImageIcon, ExternalLink, DatabaseZap,
+  Download
 } from "lucide-react"
 import Link from "next/link"
 import { apiService } from "@/lib/api"
@@ -305,6 +306,38 @@ export default function AdminPlantas() {
   }
 
   // ── Import Excel ───────────────────────────────────────────────────────────
+  const [importStatus, setImportStatus] = useState<"draft" | "published">("draft")
+
+  const downloadTemplate = () => {
+    const headers = [
+      "N° Catálogo", "Nombre Científico", "Epíteto Específico", "Autoría",
+      "Nombre Común", "Nombre Vernáculo", "Familia", "Género",
+      "Colector", "Número de Registro", "Fecha de Colección",
+      "País", "Departamento", "Municipio", "Localidad",
+      "Altitud", "Latitud", "Longitud", "Habitat", "Hábito",
+      "Descripción", "Observaciones",
+    ]
+    const example = [
+      "HEAA-001", "Heliconia psittacorum", "psittacorum", "L.f.",
+      "Heliconia", "Platanillo", "Heliconiaceae", "Heliconia",
+      "Juan Pérez", "JP-001", "2024-03-15",
+      "Colombia", "Putumayo", "Mocoa", "Quebrada La Hormiga",
+      "450", "1.1420", "-76.6450", "Bosque húmedo tropical", "Hierba",
+      "Planta herbácea con flores rojas terminales", "Observada en floración",
+    ]
+    const esc = (v: string) => `"${v.replace(/"/g, '""')}"`
+    const csv = [headers.map(esc).join(","), example.map(esc).join(",")].join("\n")
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "plantilla_herbario_HEAA.csv"
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   const parseCSVText = (text: string): Record<string, any>[] => {
     const parseLine = (line: string) => {
       const res: string[] = []; let cur = ""; let inQ = false
@@ -346,7 +379,7 @@ export default function AdminPlantas() {
           const text = await file.text()
           data = parseCSVText(text)
         } catch {
-          alert("No se pudo leer el archivo. Por favor guarda el Excel como CSV e intenta de nuevo.")
+          toast({ title: "No se pudo leer el archivo", description: "Guarda el Excel como CSV (UTF-8) e intenta de nuevo.", variant: "destructive" })
           return
         }
       }
@@ -374,11 +407,13 @@ export default function AdminPlantas() {
     if (!importRows.length) return
     setImporting(true)
     try {
-      const plants = importRows.map(mapExcelRow)
+      const plants = importRows.map(row => ({ ...mapExcelRow(row), status: importStatus }))
       const res = await apiService.importPlants(plants)
       if (res.success && res.data) {
         setImportResult(res.data)
         load()
+      } else {
+        setImportResult({ imported: 0, errors: [{ row: 0, error: res.error ?? "Error desconocido" }] })
       }
     } catch (e: any) {
       setImportResult({ imported: 0, errors: [{ row: 0, error: e.message }] })
@@ -387,6 +422,7 @@ export default function AdminPlantas() {
 
   const resetImport = () => {
     setImportRows([]); setImportHeaders([]); setImportFile(null); setImportResult(null)
+    setImportStatus("draft")
     if (fileRef.current) fileRef.current.value = ""
   }
 
@@ -686,108 +722,190 @@ export default function AdminPlantas() {
               Importar especímenes desde Excel
             </DialogTitle>
             <DialogDescription>
-              Carga tu matriz Excel (.xlsx / .xls / .csv) con los datos del herbario.
-              La primera fila debe contener los encabezados de columna.
+              Carga tu archivo Excel o CSV con los datos del herbario. La primera fila debe contener los encabezados.
             </DialogDescription>
           </DialogHeader>
 
           {!importFile ? (
-            /* Zona de drop */
-            <div
-              className={`border-2 border-dashed rounded-lg p-10 text-center transition-colors cursor-pointer ${
-                dragOver ? "border-green-500 bg-green-50" : "border-muted-foreground/25 hover:border-muted-foreground/50"
-              }`}
-              onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              onClick={() => fileRef.current?.click()}
-            >
-              <Upload className="mx-auto h-8 w-8 mb-3 text-muted-foreground/60" />
-              <p className="font-medium text-sm">Arrastra el archivo aquí o haz clic para seleccionarlo</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Soporta <strong>.xlsx</strong>, <strong>.xls</strong> y <strong>.csv</strong>
-              </p>
-              <p className="text-xs text-muted-foreground">
-                En Excel: Archivo → Guardar como → CSV (separado por comas)
-              </p>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                className="hidden"
-                onChange={handleFileInput}
-              />
+            /* ── Paso 1: Seleccionar archivo ── */
+            <div className="space-y-4">
+              {/* Plantilla */}
+              <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-green-800">¿Primera vez? Descarga la plantilla</p>
+                  <p className="text-xs text-green-700 mt-0.5">
+                    CSV con los 22 campos más usados + una fila de ejemplo. Ábrela en Excel, llénala y súbela aquí.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-shrink-0 ml-4 border-green-300 text-green-700 hover:bg-green-100"
+                  onClick={downloadTemplate}
+                >
+                  <Download className="h-3.5 w-3.5 mr-1.5" />
+                  Plantilla CSV
+                </Button>
+              </div>
+
+              {/* Zona de drop */}
+              <div
+                className={`border-2 border-dashed rounded-lg p-10 text-center transition-colors cursor-pointer ${
+                  dragOver ? "border-green-500 bg-green-50" : "border-muted-foreground/25 hover:border-muted-foreground/50"
+                }`}
+                onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+                onClick={() => fileRef.current?.click()}
+              >
+                <Upload className="mx-auto h-8 w-8 mb-3 text-muted-foreground/60" />
+                <p className="font-medium text-sm">Arrastra el archivo aquí o haz clic para seleccionarlo</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Soporta <strong>.xlsx</strong>, <strong>.xls</strong> y <strong>.csv</strong>
+                </p>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                  onChange={handleFileInput}
+                />
+              </div>
+
+              {/* Ayuda de columnas */}
+              <details className="text-xs text-muted-foreground">
+                <summary className="cursor-pointer hover:text-foreground select-none">
+                  Ver columnas reconocidas automáticamente
+                </summary>
+                <div className="mt-2 rounded border p-3 bg-muted/30 leading-relaxed">
+                  <p className="font-medium text-foreground mb-1">Encabezados en español que se mapean automáticamente:</p>
+                  <p>
+                    N° Catálogo · Nombre Científico · Epíteto Específico · Autoría · Nombre Común · Nombre Vernáculo ·
+                    Familia · Género · Colector · Número de Registro · Fecha de Colección · País · Departamento ·
+                    Municipio · Localidad · Altitud · Latitud · Longitud · Habitat · Hábito · Descripción · Observaciones
+                  </p>
+                  <p className="mt-1.5">También acepta nombres Darwin Core en inglés (scientific_name, family, genus, recorded_by, etc.)</p>
+                </div>
+              </details>
             </div>
+
           ) : importResult ? (
-            /* Resultado */
+            /* ── Paso 3: Resultado ── */
             <div className="space-y-3">
-              <div className={`flex items-center gap-3 p-4 rounded-lg border ${
+              <div className={`flex items-start gap-3 p-4 rounded-lg border ${
                 importResult.errors.length === 0
                   ? "bg-green-50 border-green-200 text-green-800"
-                  : "bg-amber-50 border-amber-200 text-amber-800"
+                  : importResult.imported > 0
+                    ? "bg-amber-50 border-amber-200 text-amber-800"
+                    : "bg-red-50 border-red-200 text-red-800"
               }`}>
                 {importResult.errors.length === 0
-                  ? <CheckCircle2 className="h-5 w-5 flex-shrink-0" />
-                  : <AlertCircle className="h-5 w-5 flex-shrink-0" />
+                  ? <CheckCircle2 className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                  : <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
                 }
                 <div>
-                  <p className="font-medium">{importResult.imported} espécimen(es) importado(s) correctamente</p>
+                  <p className="font-medium">
+                    {importResult.imported > 0
+                      ? `${importResult.imported} espécimen(es) importado(s) correctamente`
+                      : "No se importó ningún espécimen"}
+                  </p>
                   {importResult.errors.length > 0 && (
-                    <p className="text-sm mt-0.5">{importResult.errors.length} fila(s) con errores</p>
+                    <p className="text-sm mt-0.5">
+                      {importResult.errors.length} fila(s) con errores — revisa los detalles abajo
+                    </p>
                   )}
                 </div>
               </div>
               {importResult.errors.length > 0 && (
-                <div className="text-xs space-y-1 max-h-40 overflow-y-auto border rounded p-2">
-                  {importResult.errors.map((e, i) => (
-                    <p key={i} className="text-red-600">Fila {e.row}: {e.error}</p>
-                  ))}
+                <div className="rounded border bg-muted/20">
+                  <p className="text-xs font-medium px-3 pt-2 pb-1 text-muted-foreground">Errores por fila:</p>
+                  <div className="text-xs space-y-0.5 max-h-44 overflow-y-auto px-3 pb-2">
+                    {importResult.errors.map((e, i) => (
+                      <p key={i} className="text-red-600 font-mono">
+                        {e.row > 0 ? `Fila ${e.row}:` : "Error:"} {e.error}
+                      </p>
+                    ))}
+                  </div>
                 </div>
               )}
-              <div className="flex gap-2 justify-end pt-2">
-                <Button variant="outline" size="sm" onClick={resetImport}>Importar otro archivo</Button>
-                <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => setImportOpen(false)}>Cerrar</Button>
+              <div className="flex gap-2 justify-end pt-1">
+                <Button variant="outline" size="sm" onClick={resetImport}>
+                  <Upload className="h-3.5 w-3.5 mr-1.5" />
+                  Importar otro archivo
+                </Button>
+                <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => setImportOpen(false)}>
+                  Cerrar
+                </Button>
               </div>
             </div>
+
           ) : (
-            /* Vista previa */
+            /* ── Paso 2: Vista previa y confirmación ── */
             <div className="space-y-4">
+              {/* Cabecera del archivo */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm">
                   <FileSpreadsheet className="h-4 w-4 text-green-600" />
                   <span className="font-medium">{importFile}</span>
-                  <span className="text-muted-foreground">· {importRows.length} filas</span>
+                  <span className="text-muted-foreground">· {importRows.length} fila(s)</span>
                 </div>
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={resetImport}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
 
-              {/* Mapa de columnas detectadas */}
-              <div className="text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">Columnas mapeadas:</span>{" "}
-                {importHeaders
-                  .filter(h => COL_MAP[normalizeKey(h)] || COL_MAP[h.toLowerCase()])
-                  .map(h => COL_MAP[normalizeKey(h)] ?? COL_MAP[h.toLowerCase()])
-                  .filter(Boolean)
-                  .join(" · ") || "Ninguna detectada automáticamente"}
-              </div>
+              {/* Análisis de columnas */}
+              {(() => {
+                const recognized = importHeaders.filter(h => COL_MAP[normalizeKey(h)] ?? COL_MAP[h.toLowerCase()])
+                const unrecognized = importHeaders.filter(h => !COL_MAP[normalizeKey(h)] && !COL_MAP[h.toLowerCase()])
+                return (
+                  <div className="rounded-lg border bg-muted/20 p-3 space-y-1.5 text-xs">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-green-600 flex-shrink-0" />
+                      <span>
+                        <span className="font-medium text-green-700">{recognized.length} columna(s) reconocidas:</span>{" "}
+                        <span className="text-muted-foreground">
+                          {recognized.map(h => COL_MAP[normalizeKey(h)] ?? COL_MAP[h.toLowerCase()]).join(" · ") || "—"}
+                        </span>
+                      </span>
+                    </div>
+                    {unrecognized.length > 0 && (
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="h-3.5 w-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+                        <span>
+                          <span className="font-medium text-amber-700">{unrecognized.length} columna(s) ignoradas:</span>{" "}
+                          <span className="text-muted-foreground">{unrecognized.join(" · ")}</span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* Preview tabla */}
-              <div className="border rounded overflow-auto max-h-64">
+              <div className="border rounded overflow-auto max-h-56">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/40">
-                      {importHeaders.slice(0, 8).map(h => (
-                        <TableHead key={h} className="text-[11px] whitespace-nowrap">{h}</TableHead>
-                      ))}
+                      {importHeaders.slice(0, 8).map(h => {
+                        const mapped = COL_MAP[normalizeKey(h)] ?? COL_MAP[h.toLowerCase()]
+                        return (
+                          <TableHead
+                            key={h}
+                            className={`text-[11px] whitespace-nowrap ${mapped ? "text-foreground" : "text-muted-foreground/50 line-through"}`}
+                            title={mapped ? `→ ${mapped}` : "Columna no reconocida"}
+                          >
+                            {h}
+                          </TableHead>
+                        )
+                      })}
                       {importHeaders.length > 8 && (
                         <TableHead className="text-[11px] text-muted-foreground">+{importHeaders.length - 8} más</TableHead>
                       )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {importRows.slice(0, 5).map((row, i) => (
+                    {importRows.slice(0, 4).map((row, i) => (
                       <TableRow key={i}>
                         {importHeaders.slice(0, 8).map(h => (
                           <TableCell key={h} className="text-[11px] whitespace-nowrap max-w-[120px] truncate">
@@ -800,14 +918,46 @@ export default function AdminPlantas() {
                   </TableBody>
                 </Table>
               </div>
-              {importRows.length > 5 && (
-                <p className="text-xs text-muted-foreground text-center">
-                  Mostrando 5 de {importRows.length} filas
+              {importRows.length > 4 && (
+                <p className="text-xs text-muted-foreground text-center -mt-1">
+                  Mostrando 4 de {importRows.length} filas
                 </p>
               )}
 
-              <div className="flex gap-2 justify-end pt-1">
-                <Button variant="outline" size="sm" onClick={resetImport}>Cancelar</Button>
+              {/* Opciones de importación */}
+              <div className="flex items-center gap-3 rounded-lg border px-4 py-3 bg-muted/20">
+                <p className="text-sm font-medium flex-1">Importar como:</p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setImportStatus("draft")}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                      importStatus === "draft"
+                        ? "bg-amber-100 border-amber-300 text-amber-800"
+                        : "border-border text-muted-foreground hover:border-amber-200"
+                    }`}
+                  >
+                    Borrador
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImportStatus("published")}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                      importStatus === "published"
+                        ? "bg-green-100 border-green-300 text-green-800"
+                        : "border-border text-muted-foreground hover:border-green-200"
+                    }`}
+                  >
+                    Publicado
+                  </button>
+                </div>
+              </div>
+
+              {/* Acciones */}
+              <div className="flex gap-2 justify-between pt-1">
+                <Button variant="outline" size="sm" onClick={resetImport}>
+                  Elegir otro archivo
+                </Button>
                 <Button
                   size="sm"
                   className="bg-green-600 hover:bg-green-700"
@@ -815,9 +965,9 @@ export default function AdminPlantas() {
                   disabled={importing}
                 >
                   {importing ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Importando…</>
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Importando {importRows.length} filas…</>
                   ) : (
-                    <><FileSpreadsheet className="h-4 w-4 mr-2" />Importar {importRows.length} filas</>
+                    <><FileSpreadsheet className="h-4 w-4 mr-2" />Importar {importRows.length} especímenes</>
                   )}
                 </Button>
               </div>

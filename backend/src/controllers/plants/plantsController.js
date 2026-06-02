@@ -1080,33 +1080,31 @@ const importData = async (data, user) => {
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     try {
-      // scientific_name es requerido; si no viene intentar construirlo de genus + species
-      if (!row.scientific_name && row.genus && row.species) {
-        row.scientific_name = `${row.genus} ${row.species}`;
+      // scientific_name es requerido; si no viene, construirlo de genus + specific_epithet
+      if (!row.scientific_name && row.genus && row.specific_epithet) {
+        row.scientific_name = `${row.genus} ${row.specific_epithet}`;
       }
       if (!row.scientific_name) {
-        errors.push({ row: i + 2, error: 'Falta nombre científico (scientific_name)' });
+        errors.push({ row: i + 2, error: 'Falta nombre científico (Nombre Científico)' });
         continue;
       }
 
-      // Convertir valores numéricos
       const toNum = v => (v !== undefined && v !== null && v !== '' ? Number(v) || null : null);
       const toDate = v => {
         if (!v) return null;
         const s = String(v).trim();
         if (!s) return null;
-        // Excel puede mandar fecha como número serial o string
         return s.includes('T') ? s.split('T')[0] : s;
       };
 
       const result = await create({
         ...row,
-        altitude: toNum(row.altitude),
-        latitude: toNum(row.latitude),
-        longitude: toNum(row.longitude),
+        minimum_elevation_in_meters: toNum(row.minimum_elevation_in_meters),
+        decimal_latitude: toNum(row.decimal_latitude),
+        decimal_longitude: toNum(row.decimal_longitude),
         height_min: toNum(row.height_min),
         height_max: toNum(row.height_max),
-        collection_date: toDate(row.collection_date),
+        event_date: toDate(row.event_date),
         date_identified: toDate(row.date_identified),
         date_updated: toDate(row.date_updated),
         status: row.status || 'draft',
