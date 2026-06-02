@@ -350,7 +350,7 @@ export default function Home() {
                             )}
                             <h3 className="text-xl font-bold">{item.title}</h3>
                             {item.desc && (
-                              <p className="text-muted-foreground leading-relaxed">{item.desc}</p>
+                              <p className="text-muted-foreground leading-relaxed whitespace-pre-line">{item.desc}</p>
                             )}
                             {item.url && (
                               <Button
