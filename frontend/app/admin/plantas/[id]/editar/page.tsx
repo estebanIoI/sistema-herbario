@@ -731,24 +731,24 @@ export default function EditarPlantaPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="species">Especie</Label>
-                    <Input 
-                      id="species" 
+                    <Label htmlFor="specific_epithet">Especie</Label>
+                    <Input
+                      id="specific_epithet"
                       placeholder="Ej. humboldtii"
-                      value={formData.species}
-                      onChange={(e) => handleInputChange('species', e.target.value)}
+                      value={formData.specific_epithet}
+                      onChange={(e) => handleInputChange('specific_epithet', e.target.value)}
                     />
                   </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="author">Autoría del nombre científico</Label>
-                    <Input 
-                      id="author" 
+                    <Label htmlFor="scientific_name_authorship">Autoría del nombre científico</Label>
+                    <Input
+                      id="scientific_name_authorship"
                       placeholder="Ej. Bonpl."
-                      value={formData.author}
-                      onChange={(e) => handleInputChange('author', e.target.value)}
+                      value={formData.scientific_name_authorship}
+                      onChange={(e) => handleInputChange('scientific_name_authorship', e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
@@ -775,12 +775,12 @@ export default function EditarPlantaPage() {
               <CardContent className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="herbarium_number">Número de herbario</Label>
-                    <Input 
-                      id="herbarium_number" 
+                    <Label htmlFor="catalog_number">Número de catálogo</Label>
+                    <Input
+                      id="catalog_number"
                       placeholder="Ej. HEAA-001234"
-                      value={formData.herbarium_number}
-                      onChange={(e) => handleInputChange('herbarium_number', e.target.value)}
+                      value={formData.catalog_number}
+                      onChange={(e) => handleInputChange('catalog_number', e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
@@ -836,12 +836,12 @@ export default function EditarPlantaPage() {
               <CardContent className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="department">Departamento</Label>
-                    <Input 
-                      id="department" 
+                    <Label htmlFor="state_province">Departamento</Label>
+                    <Input
+                      id="state_province"
                       placeholder="Ej. Putumayo"
-                      value={formData.department}
-                      onChange={(e) => handleInputChange('department', e.target.value)}
+                      value={formData.state_province}
+                      onChange={(e) => handleInputChange('state_province', e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
@@ -856,41 +856,41 @@ export default function EditarPlantaPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="specific_location">Localidad específica</Label>
-                  <Input 
-                    id="specific_location" 
+                  <Label htmlFor="locality">Localidad específica</Label>
+                  <Input
+                    id="locality"
                     placeholder="Ej. Vereda El Pepino, 2 km al sur de la cabecera municipal"
-                    value={formData.specific_location}
-                    onChange={(e) => handleInputChange('specific_location', e.target.value)}
+                    value={formData.locality}
+                    onChange={(e) => handleInputChange('locality', e.target.value)}
                   />
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
-                    <Label htmlFor="latitude">Latitud decimal</Label>
-                    <Input 
-                      id="latitude" 
+                    <Label htmlFor="decimal_latitude">Latitud decimal</Label>
+                    <Input
+                      id="decimal_latitude"
                       placeholder="Ej. 1.1234"
-                      value={formData.latitude}
-                      onChange={(e) => handleInputChange('latitude', e.target.value)}
+                      value={formData.decimal_latitude}
+                      onChange={(e) => handleInputChange('decimal_latitude', e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="longitude">Longitud decimal</Label>
-                    <Input 
-                      id="longitude" 
+                    <Label htmlFor="decimal_longitude">Longitud decimal</Label>
+                    <Input
+                      id="decimal_longitude"
                       placeholder="Ej. -76.5678"
-                      value={formData.longitude}
-                      onChange={(e) => handleInputChange('longitude', e.target.value)}
+                      value={formData.decimal_longitude}
+                      onChange={(e) => handleInputChange('decimal_longitude', e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="altitude">Altitud (m)</Label>
-                    <Input 
-                      id="altitude" 
+                    <Label htmlFor="minimum_elevation_in_meters">Altitud (m)</Label>
+                    <Input
+                      id="minimum_elevation_in_meters"
                       placeholder="Ej. 800"
-                      value={formData.altitude}
-                      onChange={(e) => handleInputChange('altitude', e.target.value)}
+                      value={formData.minimum_elevation_in_meters}
+                      onChange={(e) => handleInputChange('minimum_elevation_in_meters', e.target.value)}
                     />
                   </div>
                 </div>
@@ -928,12 +928,12 @@ export default function EditarPlantaPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="collection_date">Fecha de colección</Label>
-                  <Input 
-                    id="collection_date" 
+                  <Label htmlFor="event_date">Fecha de colección</Label>
+                  <Input
+                    id="event_date"
                     type="date"
-                    value={formData.collection_date}
-                    onChange={(e) => handleInputChange('collection_date', e.target.value)}
+                    value={formData.event_date}
+                    onChange={(e) => handleInputChange('event_date', e.target.value)}
                   />
                 </div>
               </CardContent>
@@ -961,8 +961,8 @@ export default function EditarPlantaPage() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="habit">Hábito de crecimiento</Label>
-                    <Select value={formData.habit} onValueChange={(value) => handleInputChange('habit', value)}>
+                    <Label htmlFor="plant_habit">Hábito de crecimiento</Label>
+                    <Select value={formData.plant_habit} onValueChange={(value) => handleInputChange('plant_habit', value)}>
                       <SelectTrigger id="habit">
                         <SelectValue placeholder="Selecciona el hábito" />
                       </SelectTrigger>
@@ -1232,9 +1232,9 @@ export default function EditarPlantaPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="draft">Borrador</SelectItem>
-                      <SelectItem value="pending">Pendiente de revisión</SelectItem>
+                      <SelectItem value="review">En revisión</SelectItem>
                       <SelectItem value="published">Publicado</SelectItem>
-                      <SelectItem value="archived">Archivado</SelectItem>
+                      <SelectItem value="deleted">Eliminado</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
