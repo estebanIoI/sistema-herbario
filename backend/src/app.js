@@ -3,6 +3,9 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
+const swaggerUi = require('swagger-ui-express');
+const YAML = require('js-yaml');
+const fs = require('fs');
 const { errorHandler } = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
 const rateLimiter = require('./middleware/rateLimiter');
@@ -123,10 +126,24 @@ app.use('/api/service', serviceRouter);
 app.use('/api/plantas', plantsRouter);
 app.use('/api/media', mediaRouter);
 
-// Ruta para servir documentación de la API
-app.get('/docs/api-spec.yaml', (req, res) => {
-  res.sendFile(path.join(__dirname, '../docs/api-spec.yaml'));
-});
+// Documentación Swagger UI
+try {
+  const swaggerDocument = YAML.load(
+    fs.readFileSync(path.join(__dirname, '../docs/api-spec.yaml'), 'utf8')
+  );
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
+    customSiteTitle: 'Herbario HEAA — API Docs',
+    customCss: '.swagger-ui .topbar { background-color: #1a5c2a; }',
+    swaggerOptions: { persistAuthorization: true }
+  }));
+  app.get('/docs/api-spec.yaml', (req, res) => {
+    res.setHeader('Content-Type', 'application/x-yaml');
+    res.sendFile(path.join(__dirname, '../docs/api-spec.yaml'));
+  });
+  logger.info('Swagger UI disponible en /api-docs');
+} catch (e) {
+  logger.warn('No se pudo cargar Swagger UI:', e.message);
+}
 
 // Middleware de manejo de errores 404
 app.use('*', (req, res) => {
