@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Save, Monitor, Megaphone, Layout, Star, Info, Globe, Cloud, CheckCircle2, XCircle, Search, BookOpen, ImageIcon, PanelBottom, Leaf, Link2, Layers, Image as ImageLucide, UploadCloud, X } from "lucide-react"
+import { Loader2, Save, Monitor, Megaphone, Layout, Star, Info, Globe, Cloud, CheckCircle2, XCircle, Search, BookOpen, ImageIcon, PanelBottom, Leaf, Link2, Layers, Image as ImageLucide, UploadCloud, X, Landmark } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import { apiService } from "@/lib/api"
@@ -128,6 +128,10 @@ export default function PaginaAdminPage() {
     cloudinary: 'Cloudinary',
     logo: 'Logo y marca',
     footer: 'Pie de página',
+    govbar: 'Institucional — Barra GOV.CO',
+    quick: 'Institucional — Accesos rápidos',
+    sidebar: 'Institucional — Sidebar de inicio',
+    footer_legal: 'Institucional — Datos legales del footer',
     about_header: 'Acerca — Encabezado e Historia',
     about_mission: 'Acerca — Misión y Visión',
     about_stats: 'Acerca — Colección',
@@ -261,6 +265,7 @@ export default function PaginaAdminPage() {
           <TabsTrigger value="cloudinary" className="flex items-center gap-1"><Cloud className="h-4 w-4" />Cloudinary</TabsTrigger>
           <TabsTrigger value="logo" className="flex items-center gap-1"><ImageIcon className="h-4 w-4" />Logo</TabsTrigger>
           <TabsTrigger value="footer" className="flex items-center gap-1"><PanelBottom className="h-4 w-4" />Pie de página</TabsTrigger>
+          <TabsTrigger value="institucional" className="flex items-center gap-1"><Landmark className="h-4 w-4" />Institucional</TabsTrigger>
           <TabsTrigger value="acerca" className="flex items-center gap-1"><BookOpen className="h-4 w-4" />Acerca de</TabsTrigger>
           <TabsTrigger value="login" className="flex items-center gap-1"><ImageLucide className="h-4 w-4" />Login</TabsTrigger>
         </TabsList>
@@ -1313,6 +1318,152 @@ export default function PaginaAdminPage() {
             ))}
           </div>
         </TabsContent>
+        {/* ── INSTITUCIONAL (tema GOV.CO) ─────────────────────────────────── */}
+        <TabsContent value="institucional">
+          <div className="space-y-4">
+
+            {/* Barra GOV.CO */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Barra superior GOV.CO</CardTitle>
+                <CardDescription>Franja azul institucional que aparece arriba de todo el portal público</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="govbar_enabled"
+                    checked={settings.govbar_enabled === "true"}
+                    onCheckedChange={(v) => set("govbar_enabled", String(v))}
+                  />
+                  <Label htmlFor="govbar_enabled">Mostrar barra GOV.CO</Label>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Texto" id="govbar_text">
+                    <Input id="govbar_text" placeholder="GOV.CO" value={str(settings.govbar_text)} onChange={e => set("govbar_text", e.target.value)} />
+                  </Field>
+                  <Field label="URL" id="govbar_url">
+                    <Input id="govbar_url" placeholder="https://www.gov.co" value={str(settings.govbar_url)} onChange={e => set("govbar_url", e.target.value)} />
+                  </Field>
+                </div>
+                <div className="pt-2">
+                  <SaveBtn sectionId="govbar" keys={["govbar_enabled","govbar_text","govbar_url"]} />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Accesos rápidos */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Accesos rápidos</CardTitle>
+                <CardDescription>Tarjetas con iconos bajo el hero de la página de inicio</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="quick_enabled"
+                    checked={settings.quick_enabled === "true"}
+                    onCheckedChange={(v) => set("quick_enabled", String(v))}
+                  />
+                  <Label htmlFor="quick_enabled">Mostrar accesos rápidos</Label>
+                </div>
+                <Field label="Título de la sección" id="quick_title">
+                  <Input id="quick_title" placeholder="Accesos rápidos" value={str(settings.quick_title)} onChange={e => set("quick_title", e.target.value)} />
+                </Field>
+                <div className="grid md:grid-cols-2 gap-4">
+                  {([1,2,3,4] as const).map(n => (
+                    <div key={n} className="border rounded-lg p-3 space-y-2 bg-muted/30">
+                      <p className="text-xs font-medium text-muted-foreground">Acceso {n}</p>
+                      <Field label="Icono" id={`quick${n}_icon`} hint="Leaf, Search, Database, Star, Globe, BookOpen, Mail, Info, MapPin, Users, FileText">
+                        <Input id={`quick${n}_icon`} value={str(settings[`quick${n}_icon`])} onChange={e => set(`quick${n}_icon`, e.target.value)} />
+                      </Field>
+                      <Field label="Texto" id={`quick${n}_text`}>
+                        <Input id={`quick${n}_text`} value={str(settings[`quick${n}_text`])} onChange={e => set(`quick${n}_text`, e.target.value)} />
+                      </Field>
+                      <Field label="URL" id={`quick${n}_url`}>
+                        <Input id={`quick${n}_url`} placeholder="/plantas o https://..." value={str(settings[`quick${n}_url`])} onChange={e => set(`quick${n}_url`, e.target.value)} />
+                      </Field>
+                    </div>
+                  ))}
+                </div>
+                <div className="pt-2">
+                  <SaveBtn sectionId="quick" keys={[
+                    "quick_enabled","quick_title",
+                    "quick1_icon","quick1_text","quick1_url","quick2_icon","quick2_text","quick2_url",
+                    "quick3_icon","quick3_text","quick3_url","quick4_icon","quick4_text","quick4_url",
+                  ]} />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Sidebar institucional */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Sidebar de la página de inicio</CardTitle>
+                <CardDescription>Estadísticas, enlaces de interés y bloque informativo junto a Publicaciones y Servicios</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="sidebar_enabled"
+                    checked={settings.sidebar_enabled === "true"}
+                    onCheckedChange={(v) => set("sidebar_enabled", String(v))}
+                  />
+                  <Label htmlFor="sidebar_enabled">Mostrar sidebar institucional</Label>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Título del bloque de estadísticas" id="sidebar_stats_title">
+                    <Input id="sidebar_stats_title" value={str(settings.sidebar_stats_title)} onChange={e => set("sidebar_stats_title", e.target.value)} />
+                  </Field>
+                  <Field label="Título del bloque de enlaces" id="sidebar_links_title">
+                    <Input id="sidebar_links_title" value={str(settings.sidebar_links_title)} onChange={e => set("sidebar_links_title", e.target.value)} />
+                  </Field>
+                </div>
+                {([1,2,3] as const).map(n => (
+                  <div key={n} className="grid grid-cols-2 gap-3 border rounded-lg p-3 bg-muted/30">
+                    <Field label={`Enlace ${n} — texto`} id={`sidebar_link${n}_text`}>
+                      <Input id={`sidebar_link${n}_text`} value={str(settings[`sidebar_link${n}_text`])} onChange={e => set(`sidebar_link${n}_text`, e.target.value)} />
+                    </Field>
+                    <Field label={`Enlace ${n} — URL`} id={`sidebar_link${n}_url`}>
+                      <Input id={`sidebar_link${n}_url`} value={str(settings[`sidebar_link${n}_url`])} onChange={e => set(`sidebar_link${n}_url`, e.target.value)} />
+                    </Field>
+                  </div>
+                ))}
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Título del bloque informativo" id="sidebar_info_title">
+                    <Input id="sidebar_info_title" placeholder="Horario de atención" value={str(settings.sidebar_info_title)} onChange={e => set("sidebar_info_title", e.target.value)} />
+                  </Field>
+                  <Field label="Texto del bloque informativo" id="sidebar_info_text" hint="Usa Enter para saltos de línea">
+                    <Textarea id="sidebar_info_text" rows={2} value={str(settings.sidebar_info_text)} onChange={e => set("sidebar_info_text", e.target.value)} />
+                  </Field>
+                </div>
+                <div className="pt-2">
+                  <SaveBtn sectionId="sidebar" keys={[
+                    "sidebar_enabled","sidebar_stats_title","sidebar_links_title",
+                    "sidebar_link1_text","sidebar_link1_url","sidebar_link2_text","sidebar_link2_url",
+                    "sidebar_link3_text","sidebar_link3_url","sidebar_info_title","sidebar_info_text",
+                  ]} />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Datos legales del footer */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Datos legales del footer</CardTitle>
+                <CardDescription>NIT, dirección y datos institucionales que aparecen en el pie de página</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Field label="Datos legales" id="footer_legal_info" hint="Usa Enter para saltos de línea">
+                  <Textarea id="footer_legal_info" rows={3} value={str(settings.footer_legal_info)} onChange={e => set("footer_legal_info", e.target.value)} />
+                </Field>
+                <div className="pt-2">
+                  <SaveBtn sectionId="footer_legal" keys={["footer_legal_info"]} />
+                </div>
+              </CardContent>
+            </Card>
+
+          </div>
+        </TabsContent>
         {/* ── ACERCA DE ────────────────────────────────────────────────────── */}
         <TabsContent value="acerca">
           <div className="space-y-4">
@@ -1333,7 +1484,7 @@ export default function PaginaAdminPage() {
                   </Field>
                 </div>
                 <Field label="URL del logo del encabezado" id="about_header_logo" hint="Logo que aparece arriba del título (por defecto, el logo oficial de Uniputumayo)">
-                  <Input id="about_header_logo" placeholder="/images/logo-uniputumayo.svg" value={str(settings.about_header_logo)} onChange={e => set("about_header_logo", e.target.value)} />
+                  <Input id="about_header_logo" placeholder="/images/logo-uniputumayo.png" value={str(settings.about_header_logo)} onChange={e => set("about_header_logo", e.target.value)} />
                 </Field>
                 <Field label="URL imagen sección Historia" id="about_history_image" hint="Imagen que aparece al lado del texto de historia">
                   <Input id="about_history_image" placeholder="https://..." value={str(settings.about_history_image)} onChange={e => set("about_history_image", e.target.value)} />

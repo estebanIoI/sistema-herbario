@@ -16,7 +16,7 @@ export default function AcercaPage() {
 
   const title        = s(cfg.aboutTitle,   "Herbario HEAA")
   const subtitle     = s(cfg.aboutSubtitle, "Institución Universitaria del Putumayo (Uniputumayo) - Mocoa")
-  const headerLogo   = s(cfg.aboutHeaderLogo, "/images/logo-uniputumayo.svg")
+  const headerLogo   = s(cfg.aboutHeaderLogo, "/images/logo-uniputumayo.png")
 
   const historyImage = s(cfg.aboutHistoryImage)
   const historyTitle = s(cfg.aboutHistoryTitle, "Nuestra Historia")
@@ -112,7 +112,7 @@ export default function AcercaPage() {
       <div className="flex flex-col gap-4 items-center text-center mb-12">
         <div className="relative h-20 w-64 md:h-24 md:w-80">
           <Image
-            src={headerLogo || "/images/logo-uniputumayo.svg"}
+            src={headerLogo || "/images/logo-uniputumayo.png"}
             alt="Uniputumayo — Institución Universitaria del Putumayo"
             fill
             className="object-contain"

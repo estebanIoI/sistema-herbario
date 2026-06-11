@@ -62,6 +62,12 @@ interface PaginationData {
 export default function PlantasPage() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
+
+  // Lee el término de búsqueda del navbar institucional (?search=...)
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("search")
+    if (q) setSearchTerm(q)
+  }, [])
   const [familiaFilter, setFamiliaFilter] = useState("")
   const [advancedFilters, setAdvancedFilters] = useState<{ field: string; value: string }[]>([])
   const [plantas, setPlantas] = useState<Plant[]>([])

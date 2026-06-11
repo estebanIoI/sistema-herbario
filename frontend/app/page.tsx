@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { ArrowRight, Leaf, Search, Database, Star, Globe, X, ChevronLeft, ChevronRight } from "lucide-react"
+import { ArrowRight, Leaf, Search, Database, Star, Globe, X, ChevronLeft, ChevronRight, BookOpen, Mail, Info, MapPin, Users, FileText, Clock } from "lucide-react"
 
 import { useEffect, useState } from "react"
 import { apiService } from "@/lib/api"
@@ -24,8 +24,13 @@ interface Plant {
 }
 
 const ICON_MAP: Record<string, React.ElementType> = {
-  Leaf, Search, Database, Star, Globe,
+  Leaf, Search, Database, Star, Globe, BookOpen, Mail, Info, MapPin, Users, FileText, Clock,
 }
+
+// Paleta institucional GOV.CO
+const GOV_GREEN = "#00833E"
+const GOV_DARK = "#005C2A"
+const GOV_YELLOW = "#F0A500"
 
 const getIcon = (name: string) => ICON_MAP[name] ?? Leaf
 
@@ -122,6 +127,26 @@ export default function Home() {
   const showFeatured  = cfg.featuredEnabled !== false
   const featuredTitle = String(cfg.featuredSectionTitle ?? "Plantas destacadas")
 
+  // ── Accesos rápidos (tema institucional) ──────────────────────────────────
+  const showQuick  = cfg.quickEnabled !== false
+  const quickTitle = String(cfg.quickTitle ?? "Accesos rápidos")
+  const quickItems = [1, 2, 3, 4].map(n => ({
+    icon: String(cfg[`quick${n}Icon`] ?? ["Leaf", "BookOpen", "Info", "Mail"][n - 1]),
+    text: String(cfg[`quick${n}Text`] ?? ["Catálogo de plantas", "Publicaciones", "Acerca del herbario", "Contacto"][n - 1]),
+    url:  String(cfg[`quick${n}Url`]  ?? ["/plantas", "/publicaciones", "/acerca", "/contacto"][n - 1]),
+  })).filter(q => q.text)
+
+  // ── Sidebar institucional ─────────────────────────────────────────────────
+  const showSidebar       = cfg.sidebarEnabled !== false
+  const sidebarStatsTitle = String(cfg.sidebarStatsTitle ?? "Estadísticas de la colección")
+  const sidebarLinksTitle = String(cfg.sidebarLinksTitle ?? "Enlaces de interés")
+  const sidebarLinks = [1, 2, 3].map(n => ({
+    text: String(cfg[`sidebarLink${n}Text`] ?? ["Catálogo de plantas", "Sugerencias y contacto", "Uniputumayo"][n - 1]),
+    url:  String(cfg[`sidebarLink${n}Url`]  ?? ["/plantas", "/contacto", "https://itp.edu.co"][n - 1]),
+  })).filter(l => l.text)
+  const sidebarInfoTitle = String(cfg.sidebarInfoTitle ?? "Horario de atención")
+  const sidebarInfoText  = String(cfg.sidebarInfoText  ?? "Lunes a viernes\n8:00 a.m. – 12:00 m. y 2:00 p.m. – 6:00 p.m.")
+
   // ── Auto-advance Hero 1 ────────────────────────────────────────────────────
   useEffect(() => {
     if (slides.length <= 1) return
@@ -151,7 +176,7 @@ export default function Home() {
         </div>
       )}
       <div className="flex flex-col sm:flex-row gap-3 pt-2">
-        <Button asChild size="lg" className="bg-green-600 hover:bg-green-700">
+        <Button asChild size="lg" className="bg-[#00833E] hover:bg-[#005C2A]">
           <Link href={cta1Url}>{cta1Text} <ArrowRight className="ml-2 h-4 w-4" /></Link>
         </Button>
         <Button asChild variant="outline" size="lg" className="bg-transparent border-white text-white hover:bg-white/20 hover:text-white">
@@ -318,6 +343,37 @@ export default function Home() {
         )}
       </section>
 
+      {/* ── Accesos rápidos ───────────────────────────────────────────────── */}
+      {showQuick && quickItems.length > 0 && (
+        <section className="py-10 bg-background border-b">
+          <div className="container mx-auto px-4">
+            <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+              <span className="inline-block h-6 w-1.5 rounded" style={{ backgroundColor: GOV_YELLOW }} />
+              {quickTitle}
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {quickItems.map((q, i) => {
+                const Icon = getIcon(q.icon)
+                const isExternal = q.url.startsWith("http")
+                return (
+                  <Link
+                    key={i}
+                    href={q.url || "#"}
+                    {...(isExternal ? { target: "_blank", rel: "noreferrer" } : {})}
+                    className="group flex flex-col items-center gap-3 rounded-xl border bg-card p-6 text-center shadow-sm transition-all hover:shadow-md hover:-translate-y-1"
+                  >
+                    <div className="h-14 w-14 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(0,131,62,0.1)" }}>
+                      <Icon className="h-7 w-7" style={{ color: GOV_GREEN }} />
+                    </div>
+                    <span className="text-sm font-semibold group-hover:underline" style={{ color: GOV_DARK }}>{q.text}</span>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ── Hero 2: Publicaciones / Servicios + Globo ──────────────────────── */}
       {showHero2 && (
         <section className="py-16 bg-muted/30 overflow-hidden">
@@ -331,9 +387,10 @@ export default function Home() {
               )}
             </div>
 
-            <div className="max-w-2xl mx-auto w-full">
+            <div className={showSidebar ? "grid lg:grid-cols-3 gap-8 items-start" : "max-w-2xl mx-auto w-full"}>
 
               {/* ── Columna izquierda: carrusel de publicaciones / servicios ── */}
+              <div className={showSidebar ? "lg:col-span-2" : ""}>
               {hero2Items.length > 0 && (
                 <div className="relative">
                   <div className="grid rounded-xl shadow-lg overflow-hidden">
@@ -358,7 +415,7 @@ export default function Home() {
                           )}
                           <CardContent className={`p-6 space-y-3 ${!item.image ? 'pt-8' : ''}`}>
                             {item.badge && (
-                              <Badge className="bg-green-600 hover:bg-green-600 text-white">
+                              <Badge className="bg-[#00833E] hover:bg-[#00833E] text-white">
                                 {item.badge}
                               </Badge>
                             )}
@@ -369,7 +426,7 @@ export default function Home() {
                             {item.url && (
                               <Button
                                 asChild variant="outline" size="sm"
-                                className="mt-2 border-green-600 text-green-700 hover:bg-green-50"
+                                className="mt-2 border-[#00833E] text-[#00833E] hover:bg-[#00833E]/10"
                               >
                                 <Link href={item.url}>
                                   Ver más <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
@@ -411,7 +468,7 @@ export default function Home() {
                           onClick={() => setCurrentHero2(i)}
                           aria-label={`Item ${i + 1}`}
                           className={`h-2 rounded-full transition-all duration-300 ${
-                            i === currentHero2 ? 'w-6 bg-green-600' : 'w-2 bg-gray-300 hover:bg-gray-400'
+                            i === currentHero2 ? 'w-6 bg-[#00833E]' : 'w-2 bg-gray-300 hover:bg-gray-400'
                           }`}
                         />
                       ))}
@@ -419,7 +476,67 @@ export default function Home() {
                   )}
                 </div>
               )}
+              </div>
 
+              {/* ── Sidebar institucional ── */}
+              {showSidebar && (
+                <aside className="space-y-6">
+                  {/* Estadísticas */}
+                  <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+                    <div className="px-5 py-3 text-white font-semibold text-sm" style={{ backgroundColor: GOV_GREEN }}>
+                      {sidebarStatsTitle}
+                    </div>
+                    <div className="p-5 grid grid-cols-3 gap-3 text-center">
+                      <div>
+                        <div className="text-2xl font-bold" style={{ color: GOV_GREEN }}>{stats.totalPlants.toLocaleString()}</div>
+                        <div className="text-xs text-muted-foreground">Plantas</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold" style={{ color: GOV_GREEN }}>{stats.totalFamilies}</div>
+                        <div className="text-xs text-muted-foreground">Familias</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold" style={{ color: GOV_GREEN }}>{stats.totalGenera}</div>
+                        <div className="text-xs text-muted-foreground">Géneros</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Enlaces de interés */}
+                  {sidebarLinks.length > 0 && (
+                    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+                      <div className="px-5 py-3 text-white font-semibold text-sm" style={{ backgroundColor: GOV_GREEN }}>
+                        {sidebarLinksTitle}
+                      </div>
+                      <ul className="p-5 space-y-3 text-sm">
+                        {sidebarLinks.map((l, i) => (
+                          <li key={i}>
+                            <Link
+                              href={l.url || "#"}
+                              className="flex items-center gap-2 font-medium hover:underline"
+                              style={{ color: GOV_GREEN }}
+                              {...(l.url.startsWith("http") ? { target: "_blank", rel: "noreferrer" } : {})}
+                            >
+                              <ArrowRight className="h-3.5 w-3.5 shrink-0" style={{ color: GOV_YELLOW }} />
+                              {l.text}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Información / horario */}
+                  {sidebarInfoText && (
+                    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+                      <div className="px-5 py-3 text-white font-semibold text-sm flex items-center gap-2" style={{ backgroundColor: GOV_GREEN }}>
+                        <Clock className="h-4 w-4" /> {sidebarInfoTitle}
+                      </div>
+                      <p className="p-5 text-sm text-muted-foreground whitespace-pre-line">{sidebarInfoText}</p>
+                    </div>
+                  )}
+                </aside>
+              )}
 
             </div>
           </div>
@@ -459,15 +576,15 @@ export default function Home() {
 
                 const inner = (
                   <>
-                    <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center mb-4">
-                      <Icon className="h-6 w-6 text-green-600" />
+                    <div className="h-12 w-12 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: "rgba(0,131,62,0.1)" }}>
+                      <Icon className="h-6 w-6" style={{ color: GOV_GREEN }} />
                     </div>
                     <h3 className="text-xl font-bold mb-2">{title}</h3>
                     <p className={featuresBg ? "text-gray-300" : "text-muted-foreground"}>
                       {desc || "Próximamente más información."}
                     </p>
                     {url && (
-                      <span className={`mt-3 text-sm font-medium flex items-center gap-1 ${featuresBg ? "text-green-300" : "text-green-600"}`}>
+                      <span className={`mt-3 text-sm font-medium flex items-center gap-1 ${featuresBg ? "text-green-300" : "text-[#00833E]"}`}>
                         Ver más <ArrowRight className="h-3 w-3" />
                       </span>
                     )}
@@ -497,7 +614,10 @@ export default function Home() {
         <section className="py-20 bg-background">
           <div className="container mx-auto px-4">
             <div className="flex justify-between items-center mb-8">
-              <h2 className="text-3xl font-bold tracking-tighter">{featuredTitle}</h2>
+              <h2 className="text-3xl font-bold tracking-tighter flex items-center gap-3">
+                <span className="inline-block h-8 w-1.5 rounded" style={{ backgroundColor: GOV_YELLOW }} />
+                {featuredTitle}
+              </h2>
               <Button asChild variant="outline" className="hidden sm:flex">
                 <Link href="/plantas">Ver todas <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>

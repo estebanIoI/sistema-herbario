@@ -6,6 +6,9 @@ import { usePathname } from "next/navigation"
 import { SuggestionForm } from "@/components/suggestion-form"
 import { usePublicSettings } from "@/lib/use-public-settings"
 
+const GOV_DARK = "#005C2A"
+const GOV_YELLOW = "#F0A500"
+
 // Renderiza un enlace del footer: si url está vacía, muestra texto plano
 function FooterLink({ text, url }: { text: string; url: string }) {
   if (!text) return null
@@ -15,7 +18,7 @@ function FooterLink({ text, url }: { text: string; url: string }) {
       <li>
         <Link
           href={url}
-          className="text-muted-foreground hover:text-foreground"
+          className="text-white/75 hover:text-white hover:underline"
           {...(isExternal ? { target: "_blank", rel: "noreferrer" } : {})}
         >
           {text}
@@ -23,7 +26,7 @@ function FooterLink({ text, url }: { text: string; url: string }) {
       </li>
     )
   }
-  return <li><span className="text-muted-foreground">{text}</span></li>
+  return <li><span className="text-white/75">{text}</span></li>
 }
 
 function FooterColumn({ title, links }: {
@@ -34,7 +37,11 @@ function FooterColumn({ title, links }: {
   if (!title && visibleLinks.length === 0) return null
   return (
     <div>
-      {title && <h3 className="mb-3 text-sm font-medium">{title}</h3>}
+      {title && (
+        <h3 className="mb-3 text-sm font-semibold text-white border-b-2 pb-2" style={{ borderColor: GOV_YELLOW }}>
+          {title}
+        </h3>
+      )}
       <ul className="space-y-2 text-sm">
         {visibleLinks.map((l, i) => (
           <FooterLink key={i} text={l.text} url={l.url} />
@@ -52,10 +59,14 @@ export default function Footer() {
   const isLoginPage = pathname === "/login"
   if (isAdmin || isLoginPage) return null
 
-  const logoText   = s.logoText   || "Herbario Digital"
-  const logoImage  = s.logoImageUrl || ""
+  const logoText   = s.logoText || "Herbario HEAA"
+  const logoImage  = s.logoImageUrl || "/images/logo-uniputumayo.png"
   const footerDesc = s.footerDescription || "Explorando y preservando la diversidad botánica para las generaciones futuras."
-  const copyright  = s.footerCopyright  || "Herbario Digital. Todos los derechos reservados."
+  const copyright  = s.footerCopyright  || "Herbario HEAA — Institución Universitaria del Putumayo. Todos los derechos reservados."
+  const legalInfo  = s.footerLegalInfo  || ""
+
+  const govbarText = s.govbarText || "GOV.CO"
+  const govbarUrl  = s.govbarUrl  || "https://www.gov.co"
 
   const col = (n: 1 | 2 | 3) => ({
     title: s[`footerCol${n}Title`] ?? "",
@@ -66,21 +77,26 @@ export default function Footer() {
   })
 
   return (
-    <footer className="border-t bg-background">
+    <footer style={{ backgroundColor: GOV_DARK }}>
+      {/* Franja de acento institucional */}
+      <div className="h-1 w-full" style={{ backgroundColor: GOV_YELLOW }} />
+
       <div className="container py-8 md:py-12">
         <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-4">
           {/* Columna de marca */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               {logoImage ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoImage} alt={logoText} className="h-5 w-5 object-contain" />
+                <div className="bg-white rounded-md p-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={logoImage} alt={logoText} className="h-9 w-auto max-w-[160px] object-contain" />
+                </div>
               ) : (
-                <Leaf className="h-5 w-5 text-green-600" />
+                <Leaf className="h-5 w-5 text-white" />
               )}
-              <span className="text-lg font-bold">{logoText}</span>
             </div>
-            <p className="text-sm text-muted-foreground">{footerDesc}</p>
+            <span className="block text-lg font-bold text-white">{logoText}</span>
+            <p className="text-sm text-white/75">{footerDesc}</p>
           </div>
 
           {/* Columnas 1, 2 y 3 configurables */}
@@ -89,7 +105,11 @@ export default function Footer() {
 
           {/* Columna 3: agrega el formulario de sugerencia al final */}
           <div>
-            {col(3).title && <h3 className="mb-3 text-sm font-medium">{col(3).title}</h3>}
+            {col(3).title && (
+              <h3 className="mb-3 text-sm font-semibold text-white border-b-2 pb-2" style={{ borderColor: GOV_YELLOW }}>
+                {col(3).title}
+              </h3>
+            )}
             <ul className="space-y-2 text-sm">
               {col(3).links.map((l, i) => (
                 <FooterLink key={i} text={l.text} url={l.url} />
@@ -101,8 +121,20 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-8 border-t pt-8 text-center text-sm text-muted-foreground">
-          <p>© {new Date().getFullYear()} {copyright}</p>
+        {/* Datos legales + sello GOV.CO */}
+        <div className="mt-8 border-t border-white/20 pt-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="text-center md:text-left text-sm text-white/75 space-y-1">
+            {legalInfo && <p className="whitespace-pre-line">{legalInfo}</p>}
+            <p>© {new Date().getFullYear()} {copyright}</p>
+          </div>
+          <a
+            href={govbarUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="shrink-0 border border-white/40 rounded px-4 py-2 text-white font-bold italic text-sm tracking-wide hover:bg-white/10 transition-colors"
+          >
+            {govbarText}
+          </a>
         </div>
       </div>
     </footer>
