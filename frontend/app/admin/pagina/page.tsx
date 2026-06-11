@@ -129,6 +129,7 @@ export default function PaginaAdminPage() {
     logo: 'Logo y marca',
     footer: 'Pie de página',
     theme: 'Institucional — Colores del tema',
+    senas: 'Institucional — Lengua de señas',
     govbar: 'Institucional — Barra GOV.CO',
     quick: 'Institucional — Accesos rápidos',
     sidebar: 'Institucional — Sidebar de inicio',
@@ -1394,6 +1395,61 @@ export default function PaginaAdminPage() {
 
                 <div className="pt-2">
                   <SaveBtn sectionId="theme" keys={["theme_primary","theme_primary_dark","theme_accent"]} />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Lengua de señas */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Lengua de señas (accesibilidad)</CardTitle>
+                <CardDescription>
+                  Muestra un intérprete de lengua de señas en un panel flotante cuando el visitante
+                  pasa el cursor sobre cada sección de la página de inicio. Pega la URL del video
+                  (Cloudinary, YouTube no; usa un archivo .mp4/.webm) de cada sección.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="senas_enabled"
+                    checked={settings.senas_enabled === "true"}
+                    onCheckedChange={(v) => set("senas_enabled", String(v))}
+                  />
+                  <Label htmlFor="senas_enabled">Activar intérprete de lengua de señas</Label>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  {([
+                    { key: "senas_video_hero",            label: "Hero principal (Inicio)" },
+                    { key: "senas_video_accesos",         label: "Accesos rápidos" },
+                    { key: "senas_video_publicaciones",   label: "Publicaciones y Servicios" },
+                    { key: "senas_video_caracteristicas", label: "Características" },
+                    { key: "senas_video_destacadas",      label: "Plantas destacadas" },
+                  ] as const).map(({ key, label }) => (
+                    <Field key={key} label={label} id={key} hint="URL de video .mp4 o .webm (deja vacío para no mostrar señas en esta sección)">
+                      <Input
+                        id={key}
+                        placeholder="https://...video.mp4"
+                        value={str(settings[key])}
+                        onChange={(e) => set(key, e.target.value)}
+                      />
+                    </Field>
+                  ))}
+                </div>
+
+                <div className="rounded-lg border p-3 bg-muted/30 text-xs text-muted-foreground">
+                  Sugerencia: graba un video corto (15–40 s) del intérprete por sección, súbelo a
+                  Cloudinary y pega aquí la URL terminada en <code>.mp4</code> o <code>.webm</code>.
+                  El panel reproduce el video en bucle y sin sonido.
+                </div>
+
+                <div className="pt-2">
+                  <SaveBtn sectionId="senas" keys={[
+                    "senas_enabled",
+                    "senas_video_hero","senas_video_accesos","senas_video_publicaciones",
+                    "senas_video_caracteristicas","senas_video_destacadas",
+                  ]} />
                 </div>
               </CardContent>
             </Card>

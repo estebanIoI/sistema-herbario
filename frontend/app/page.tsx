@@ -8,6 +8,7 @@ import { ArrowRight, Leaf, Search, Database, Star, Globe, X, ChevronLeft, Chevro
 
 import { useEffect, useState } from "react"
 import { apiService } from "@/lib/api"
+import { useSenas } from "@/components/senas-context"
 
 interface PublicStats {
   totalPlants: number
@@ -42,6 +43,7 @@ const BANNER_COLORS: Record<string, string> = {
 }
 
 export default function Home() {
+  const senas = useSenas()
   const [stats, setStats]               = useState<PublicStats>({ totalPlants: 0, totalFamilies: 0, totalGenera: 0 })
   const [cfg, setCfg]                   = useState<Record<string, any>>({})
   const [featuredPlants, setFeaturedPlants] = useState<Plant[]>([])
@@ -210,7 +212,11 @@ export default function Home() {
       )}
 
       {/* ── Hero 1: Carrusel de imágenes ──────────────────────────────────── */}
-      <section className="relative w-full overflow-hidden bg-gradient-to-br from-green-950 via-green-900 to-green-800">
+      <section
+        className="relative w-full overflow-hidden bg-gradient-to-br from-green-950 via-green-900 to-green-800"
+        onMouseEnter={() => senas.show(cfg.senasVideoHero, "Inicio")}
+        onMouseLeave={senas.hide}
+      >
         {loading ? (
           /* Skeleton mientras carga */
           <div className="min-h-[70vh] flex items-center">
@@ -345,7 +351,11 @@ export default function Home() {
 
       {/* ── Accesos rápidos ───────────────────────────────────────────────── */}
       {showQuick && quickItems.length > 0 && (
-        <section className="py-10 bg-background border-b">
+        <section
+          className="py-10 bg-background border-b"
+          onMouseEnter={() => senas.show(cfg.senasVideoAccesos, "Accesos rápidos")}
+          onMouseLeave={senas.hide}
+        >
           <div className="container mx-auto px-4">
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
               <span className="inline-block h-6 w-1.5 rounded" style={{ backgroundColor: GOV_YELLOW }} />
@@ -376,7 +386,11 @@ export default function Home() {
 
       {/* ── Hero 2: Publicaciones / Servicios + Globo ──────────────────────── */}
       {showHero2 && (
-        <section className="py-16 bg-muted/30 overflow-hidden">
+        <section
+          className="py-16 bg-muted/30 overflow-hidden"
+          onMouseEnter={() => senas.show(cfg.senasVideoPublicaciones, "Publicaciones y Servicios")}
+          onMouseLeave={senas.hide}
+        >
           <div className="container mx-auto px-4">
 
             {/* Encabezado centrado */}
@@ -545,7 +559,11 @@ export default function Home() {
 
       {/* ── Hero 3: Características ────────────────────────────────────────── */}
       {showFeatures && (
-        <section className={`relative overflow-hidden py-20 ${featuresBg ? "" : "bg-background"}`}>
+        <section
+          className={`relative overflow-hidden py-20 ${featuresBg ? "" : "bg-background"}`}
+          onMouseEnter={() => senas.show(cfg.senasVideoCaracteristicas, "Características")}
+          onMouseLeave={senas.hide}
+        >
           {featuresBg && (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -611,7 +629,11 @@ export default function Home() {
 
       {/* ── Plantas destacadas ────────────────────────────────────────────── */}
       {showFeatured && (
-        <section className="py-20 bg-background">
+        <section
+          className="py-20 bg-background"
+          onMouseEnter={() => senas.show(cfg.senasVideoDestacadas, "Plantas destacadas")}
+          onMouseLeave={senas.hide}
+        >
           <div className="container mx-auto px-4">
             <div className="flex justify-between items-center mb-8">
               <h2 className="text-3xl font-bold tracking-tighter flex items-center gap-3">

@@ -192,6 +192,13 @@ const PAGINA_SETTINGS = [
   { key_name: 'about_cta_text',         value: 'Si eres investigador, estudiante o entusiasta de la botánica, puedes contribuir a nuestro herbario con especímenes, fotografías o información sobre la flora del Putumayo y la Amazonía colombiana.', type: 'string', description: 'Texto del CTA (Acerca de)' },
   { key_name: 'about_cta_button_text',  value: 'Conoce cómo colaborar',        type: 'string', description: 'Texto botón CTA (Acerca de)' },
   { key_name: 'about_cta_button_url',   value: '/contacto',                    type: 'string', description: 'URL botón CTA (Acerca de)' },
+  // ── Accesibilidad — Lengua de señas (video por sección, aparece al pasar el cursor)
+  { key_name: 'senas_enabled',                value: 'false', type: 'boolean', description: 'Activar el intérprete de lengua de señas al pasar el cursor sobre las secciones' },
+  { key_name: 'senas_video_hero',             value: '',      type: 'string',  description: 'URL del video de señas para el Hero principal' },
+  { key_name: 'senas_video_accesos',          value: '',      type: 'string',  description: 'URL del video de señas para la sección de Accesos rápidos' },
+  { key_name: 'senas_video_publicaciones',    value: '',      type: 'string',  description: 'URL del video de señas para Publicaciones y Servicios' },
+  { key_name: 'senas_video_caracteristicas',  value: '',      type: 'string',  description: 'URL del video de señas para la sección de Características' },
+  { key_name: 'senas_video_destacadas',       value: '',      type: 'string',  description: 'URL del video de señas para Plantas destacadas' },
   // ── Tema institucional GOV.CO
   { key_name: 'theme_primary',        value: '#00833E', type: 'string', description: 'Color verde principal del tema (navbar, botones, títulos)' },
   { key_name: 'theme_primary_dark',   value: '#005C2A', type: 'string', description: 'Verde oscuro del tema (footer, hover de menú)' },
@@ -290,6 +297,43 @@ const PAGINA_SETTINGS = [
     logger.info(`✅ Settings cargadas (${PAGINA_SETTINGS.length})`);
   } catch (err) {
     logger.warn('No se pudieron migrar settings de página:', err.message);
+  }
+})();
+
+// ── Migración: configuración del Chatbot (categoría 'chatbot') ───────────────
+// Los textos visibles son públicos (is_public=1); el proveedor, modelo, prompt
+// y las API keys son privados (is_public=0) y nunca se exponen al frontend.
+const CHATBOT_SETTINGS = [
+  { key_name: 'chatbot_enabled',        value: 'false', type: 'boolean', is_public: 1, description: 'Activar el asistente virtual (chatbot) en el sitio público' },
+  { key_name: 'chatbot_title',          value: 'Asistente del Herbario', type: 'string', is_public: 1, description: 'Título que aparece en la cabecera del chat' },
+  { key_name: 'chatbot_welcome',        value: '¡Hola! 🌱 Soy el asistente virtual del Herbario HEAA. ¿En qué puedo ayudarte?', type: 'string', is_public: 1, description: 'Mensaje de bienvenida del chat' },
+  { key_name: 'chatbot_placeholder',    value: 'Escribe tu pregunta…', type: 'string', is_public: 1, description: 'Texto del campo de entrada del chat' },
+  { key_name: 'chatbot_launcher',       value: '¿Necesitas ayuda?', type: 'string', is_public: 1, description: 'Texto del botón flotante que abre el chat' },
+  { key_name: 'chatbot_provider',       value: 'groq', type: 'string', is_public: 0, description: 'Proveedor de IA: "groq" o "google" (Gemini)' },
+  { key_name: 'chatbot_model',          value: '', type: 'string', is_public: 0, description: 'Modelo a usar (vacío = predeterminado del proveedor). Groq: llama-3.1-8b-instant. Google: gemini-1.5-flash' },
+  { key_name: 'chatbot_system_prompt',  value: '', type: 'string', is_public: 0, description: 'Instrucción de sistema / personalidad (vacío = predeterminado del Herbario)' },
+  { key_name: 'chatbot_temperature',    value: '0.4', type: 'string', is_public: 0, description: 'Creatividad del modelo (0.0 a 1.0)' },
+  { key_name: 'chatbot_max_history',    value: '10', type: 'string', is_public: 0, description: 'Número máximo de mensajes de historial enviados al modelo' },
+  { key_name: 'chatbot_groq_api_key',   value: '', type: 'string', is_public: 0, description: 'API key de GroqCloud (https://console.groq.com/keys)' },
+  { key_name: 'chatbot_google_api_key', value: '', type: 'string', is_public: 0, description: 'API key de Google AI Studio (https://aistudio.google.com/app/apikey)' },
+];
+
+(async () => {
+  try {
+    for (const s of CHATBOT_SETTINGS) {
+      await db.query(
+        `INSERT INTO settings (key_name, value, type, category, description, is_public)
+         VALUES (?, ?, ?, 'chatbot', ?, ?)
+         ON DUPLICATE KEY UPDATE
+           category  = 'chatbot',
+           type      = VALUES(type),
+           is_public = VALUES(is_public)`,
+        [s.key_name, s.value, s.type, s.description, s.is_public]
+      );
+    }
+    logger.info(`✅ Settings del chatbot cargadas (${CHATBOT_SETTINGS.length})`);
+  } catch (err) {
+    logger.warn('No se pudieron migrar settings del chatbot:', err.message);
   }
 })();
 

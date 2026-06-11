@@ -41,6 +41,18 @@ const FIELD_LABELS: Record<string, string> = {
   cloudinary_api_key:         "API Key",
   cloudinary_api_secret:      "API Secret",
   cloudinary_folder:          "Carpeta base",
+  chatbot_enabled:            "Activar asistente virtual",
+  chatbot_title:              "Título del chat",
+  chatbot_welcome:            "Mensaje de bienvenida",
+  chatbot_placeholder:        "Texto del campo de entrada",
+  chatbot_launcher:           "Texto del botón flotante",
+  chatbot_provider:           "Proveedor de IA (groq | google)",
+  chatbot_model:              "Modelo (vacío = predeterminado)",
+  chatbot_system_prompt:      "Instrucción de sistema / personalidad",
+  chatbot_temperature:        "Creatividad (0.0 – 1.0)",
+  chatbot_max_history:        "Máximo de mensajes de historial",
+  chatbot_groq_api_key:       "API Key de Groq",
+  chatbot_google_api_key:     "API Key de Google AI Studio",
 }
 
 const CATEGORY_CONFIG: Record<string, { label: string; description: string; order: number }> = {
@@ -52,10 +64,11 @@ const CATEGORY_CONFIG: Record<string, { label: string; description: string; orde
   search:     { label: "Búsqueda",        description: "Configuración del motor de búsqueda",      order: 6 },
   uploads:    { label: "Archivos",        description: "Límites y tipos de archivos permitidos",   order: 7 },
   cloudinary: { label: "Cloudinary",      description: "Credenciales para almacenamiento de imágenes", order: 8 },
+  chatbot:    { label: "Asistente Virtual (Chatbot)", description: "IA conversacional con Groq o Google AI Studio", order: 9 },
 }
 
 // Campos cuyo valor es contraseña (ocultar por defecto)
-const SECRET_KEYS = new Set(["cloudinary_api_key", "cloudinary_api_secret"])
+const SECRET_KEYS = new Set(["cloudinary_api_key", "cloudinary_api_secret", "chatbot_groq_api_key", "chatbot_google_api_key"])
 
 export default function ConfiguracionPage() {
   const { toast } = useToast()

@@ -748,6 +748,17 @@ class ApiService {
   }
 
   // ===============================
+  // CHATBOT (asistente virtual público)
+  // ===============================
+  async chatbotSend(
+    messages: { role: 'user' | 'assistant'; content: string }[]
+  ): Promise<ApiResponse<{ reply: string; provider: string }>> {
+    return this.fetchApi('chatbot.send', {
+      body: JSON.stringify({ messages }),
+    });
+  }
+
+  // ===============================
   // SERVICIOS DE BÚSQUEDA
   // ===============================
   

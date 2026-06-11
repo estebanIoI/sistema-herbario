@@ -10,6 +10,7 @@ const suggestionsController = require('../controllers/suggestions/suggestionsCon
 const settingsController = require('../controllers/settings/settingsController');
 const pqrsdfController   = require('../controllers/pqrsdf/pqrsdfController');
 const postsController    = require('../controllers/posts/postsController');
+const chatbotController  = require('../controllers/chatbot/chatbotController');
 
 // Controladores específicos para servicios (sin req/res)
 const getAllPlants = require('../controllers/plants/getAll');
@@ -211,6 +212,11 @@ const services = {
   'posts.create':   postsController.create,
   'posts.update':   postsController.update,
   'posts.delete':   postsController.delete,
+
+  // ===============================
+  // SERVICIO DE CHATBOT (público, anónimo)
+  // ===============================
+  'chatbot.send':   chatbotController.send,
 
   // ===============================
   // SERVICIOS DE VALIDACIÓN

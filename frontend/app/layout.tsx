@@ -8,6 +8,8 @@ import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 import SocialBar from "@/components/social-bar"
 import ThemeColors from "@/components/theme-colors"
+import Chatbot from "@/components/chatbot"
+import { SenasProvider } from "@/components/senas-context"
 import { Toaster } from "@/components/ui/toaster"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -29,12 +31,15 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <ThemeColors />
           <AuthProvider>
-            <div className="flex min-h-screen flex-col">
-              <Navbar />
-              <main className="flex-1">{children}</main>
-              <Footer />
-            </div>
-            <SocialBar />
+            <SenasProvider>
+              <div className="flex min-h-screen flex-col">
+                <Navbar />
+                <main className="flex-1">{children}</main>
+                <Footer />
+              </div>
+              <SocialBar />
+              <Chatbot />
+            </SenasProvider>
             <Toaster />
           </AuthProvider>
         </ThemeProvider>
