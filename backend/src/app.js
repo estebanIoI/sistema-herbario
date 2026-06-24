@@ -26,29 +26,18 @@ const corsOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
   : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173'];
 
-// Configuración mejorada de CORS para evitar problemas de conexión
+// CORS — permite todos los orígenes (Traefik filtra en producción)
 app.use(cors({
-  origin: function (origin, callback) {
-    // Permitir requests sin origen (como mobile apps, curl, etc)
-    if (!origin) return callback(null, true);
-    
-    // Permitir todos los orígenes en desarrollo
-    if (process.env.NODE_ENV === 'development') return callback(null, true);
-    
-    // Verificar si el origen está en la lista permitida
-    if (corsOrigins.indexOf(origin) !== -1) {
-      return callback(null, true);
-    } else {
-      console.log(`⚠️ CORS: Origen bloqueado: ${origin}`);
-      return callback(null, true); // Permitir de todos modos para evitar problemas en desarrollo
-    }
-  },
+  origin: true, // refleja el origen del request — funciona con cualquier dominio
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Content-Length'],
   exposedHeaders: ['Authorization'],
-  maxAge: 86400 // 1 día de cache para preflight
+  maxAge: 86400,
 }));
+
+// Responder preflight OPTIONS inmediatamente antes de cualquier middleware
+app.options('*', cors({ origin: true, credentials: true }));
 
 // Middlewares de seguridad
 app.use(express.json({ limit: '10mb' }));

@@ -27,7 +27,9 @@ COPY --chown=nodejs:nodejs . .
 RUN mkdir -p /app/uploads/plants && chown -R nodejs:nodejs /app/uploads
 
 # Entrypoint que garantiza permisos del volumen montado en runtime
-COPY --chmod=755 docker-entrypoint.sh /docker-entrypoint.sh
+# sed convierte CRLF → LF por si el archivo fue editado en Windows
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN sed -i 's/\r$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh
 
 EXPOSE 5001
 
