@@ -27,12 +27,20 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={inter.className} suppressHydrationWarning>
+        {/* Removes browser-extension injected attributes (e.g. bis_skin_checked from BIS/BuiltWith)
+            before React hydration compares server vs client DOM */}
+        <script
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var attrs=['bis_skin_checked','bis_register'];function clean(el){attrs.forEach(function(a){el.hasAttribute(a)&&el.removeAttribute(a)})}document.querySelectorAll('[bis_skin_checked],[bis_register]').forEach(clean);new MutationObserver(function(ms){ms.forEach(function(m){m.type==='attributes'&&m.attributeName&&m.attributeName.indexOf('bis_')===0&&m.target.removeAttribute(m.attributeName)})}).observe(document.documentElement,{attributes:true,subtree:true})})()`,
+          }}
+        />
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <ThemeColors />
           <AuthProvider>
             <SenasProvider>
-              <div className="flex min-h-screen flex-col">
+              <div className="flex min-h-screen flex-col" suppressHydrationWarning>
                 <Navbar />
                 <main className="flex-1">{children}</main>
                 <Footer />

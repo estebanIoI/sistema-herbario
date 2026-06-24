@@ -101,18 +101,24 @@ const getAll = async (data) => {
       : '';
 
     // Query para obtener las plantas (nombres Darwin Core)
+    // Incluye imagen principal y conteo de imágenes vía subquery para el listado
     const plantsQuery = `
       SELECT
-        id, catalog_number, scientific_name,
-        vernacular_name, common_name, family, genus, specific_epithet,
-        state_province, municipality, locality,
-        recorded_by, event_date, plant_habit,
-        description, habitat, uses, care_instructions,
-        decimal_latitude, decimal_longitude,
-        status, featured, views, created_at
-      FROM plants
+        p.id, p.catalog_number, p.scientific_name,
+        p.vernacular_name, p.common_name, p.family, p.genus, p.specific_epithet,
+        p.state_province, p.county, p.municipality, p.locality,
+        p.recorded_by, p.event_date, p.plant_habit,
+        p.description, p.habitat, p.uses,
+        p.decimal_latitude, p.decimal_longitude,
+        p.status, p.featured, p.views, p.created_at,
+        (SELECT pi.thumbnail_url FROM plant_images pi
+         WHERE pi.plant_id = p.id AND pi.is_main = 1 LIMIT 1) AS main_image_thumbnail,
+        (SELECT pi.image_url FROM plant_images pi
+         WHERE pi.plant_id = p.id AND pi.is_main = 1 LIMIT 1) AS main_image_url,
+        (SELECT COUNT(*) FROM plant_images pi WHERE pi.plant_id = p.id) AS image_count
+      FROM plants p
       ${whereClause}
-      ORDER BY created_at DESC
+      ORDER BY p.created_at DESC
       LIMIT ? OFFSET ?
     `;
 
@@ -143,7 +149,10 @@ const getAll = async (data) => {
     // Procesar las plantas — nombres Darwin Core, sin alias
     const processedPlants = plants.map(plant => ({
       ...plant,
-      imageUrls: [],
+      imageUrls: plant.main_image_url ? [plant.main_image_url] : [],
+      main_image_thumbnail: plant.main_image_thumbnail || plant.main_image_url || null,
+      main_image_url: plant.main_image_url || null,
+      image_count: Number(plant.image_count) || 0,
       vernacular_name: plant.vernacular_name || plant.common_name || null,
       decimal_latitude: plant.decimal_latitude != null ? parseFloat(plant.decimal_latitude) : null,
       decimal_longitude: plant.decimal_longitude != null ? parseFloat(plant.decimal_longitude) : null

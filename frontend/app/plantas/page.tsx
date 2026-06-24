@@ -251,7 +251,11 @@ export default function PlantasPage() {
             value: family.name,
             label: `${family.name} (${family.speciesCount} especies)`
           }))
+          .sort((a, b) => a.value.localeCompare(b.value))
         setFamilies(mappedFamilies)
+        if (mappedFamilies.length > 0 && !familiaFilter) {
+          setFamiliaFilter(mappedFamilies[0].value)
+        }
       }
     } catch (error) {
       console.error("Error al cargar familias:", error)

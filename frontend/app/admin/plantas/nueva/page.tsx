@@ -10,9 +10,197 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Upload, Plus, X, Save, Loader2, CheckCircle2 } from "lucide-react"
+import { ArrowLeft, Upload, Plus, X, Save, Loader2, CheckCircle2, MapPin, Sparkles, Copy, ChevronDown, LayoutTemplate, Pencil, Trash2, ExternalLink, Hash } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { apiService } from "@/lib/api"
+
+// ── Tipos helpers ────────────────────────────────────────────────────────────
+type AutocompleteItem = { id: number; value: string; type: string; label: string }
+
+type TipoPlantilla = 'institucion' | 'coleccion' | 'ubicacion'
+
+type Plantilla = {
+  id: string
+  nombre: string
+  tipo: TipoPlantilla
+  campos: Record<string, string>
+}
+
+// ── Valores por defecto (se usan solo si localStorage está vacío) ─────────────
+const PLANTILLAS_DEFAULT: Plantilla[] = [
+  // Institución
+  {
+    id: 'default-inst-unip',
+    nombre: 'UNIP',
+    tipo: 'institucion',
+    campos: {
+      institutionCode: 'Institución Universitaria del Putumayo (UNIP)',
+      institutionID: '800247940',
+      basisOfRecord: 'preservedSpecimen',
+      type: 'physicalObject',
+    },
+  },
+  // Colección
+  {
+    id: 'default-col-heaa',
+    nombre: 'HEAA - Herbario general',
+    tipo: 'coleccion',
+    campos: { collectionCode: 'HEAA', collectionID: 'HEAA-ITP' },
+  },
+  {
+    id: 'default-col-heaa-moc',
+    nombre: 'HEAA-MOC - Mocoa',
+    tipo: 'coleccion',
+    campos: { collectionCode: 'HEAA-MOC', collectionID: '' },
+  },
+  {
+    id: 'default-col-heaa-sib',
+    nombre: 'HEAA-SIB - Sibundoy',
+    tipo: 'coleccion',
+    campos: { collectionCode: 'HEAA-SIB', collectionID: '' },
+  },
+  // Ubicación
+  {
+    id: 'default-ubic-mocoa',
+    nombre: 'Putumayo - Mocoa',
+    tipo: 'ubicacion',
+    campos: { country: 'Colombia', stateProvince: 'Putumayo', county: 'Mocoa' },
+  },
+  {
+    id: 'default-ubic-sibundoy',
+    nombre: 'Putumayo - Sibundoy',
+    tipo: 'ubicacion',
+    campos: { country: 'Colombia', stateProvince: 'Putumayo', county: 'Sibundoy' },
+  },
+]
+
+const LS_KEY = 'heaa_plantillas_v1'
+
+const loadPlantillas = (): Plantilla[] => {
+  try {
+    const raw = localStorage.getItem(LS_KEY)
+    return raw ? JSON.parse(raw) : PLANTILLAS_DEFAULT
+  } catch { return PLANTILLAS_DEFAULT }
+}
+
+const savePlantillas = (list: Plantilla[]) => {
+  localStorage.setItem(LS_KEY, JSON.stringify(list))
+}
+
+// ── PlantillaDropdown (fuera del componente principal para evitar remount en cada render) ──
+function PlantillaDropdown({
+  tipo, plantillas: list, open, onToggle, onApply, onNew, onEdit, onDelete
+}: {
+  tipo: TipoPlantilla
+  plantillas: Plantilla[]
+  open: boolean
+  onToggle: () => void
+  onApply: (p: Plantilla) => void
+  onNew: () => void
+  onEdit: (p: Plantilla) => void
+  onDelete: (id: string) => void
+}) {
+  const items = list.filter(p => p.tipo === tipo)
+  return (
+    <div className="relative">
+      <Button type="button" variant="outline" size="sm" onClick={onToggle}>
+        <LayoutTemplate className="mr-2 h-4 w-4" />Plantillas<ChevronDown className="ml-1 h-3 w-3" />
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-9 z-50 w-64 rounded-md border bg-background shadow-lg">
+          <div className="flex items-center justify-between px-3 pt-2 pb-1 border-b">
+            <span className="text-xs font-medium text-muted-foreground">Plantillas guardadas</span>
+            <button type="button" onClick={onNew}
+              className="flex items-center gap-1 text-xs text-primary hover:underline">
+              <Plus className="h-3 w-3" />Nueva
+            </button>
+          </div>
+          {items.length === 0 && (
+            <p className="px-3 py-3 text-xs text-muted-foreground text-center">Sin plantillas. Crea una con "+ Nueva".</p>
+          )}
+          {items.map(p => (
+            <div key={p.id} className="flex items-center gap-1 px-2 py-1.5 hover:bg-muted group">
+              <button type="button" className="flex-1 text-left text-sm px-1 truncate" onClick={() => onApply(p)}>
+                {p.nombre}
+              </button>
+              <button type="button" onClick={() => onEdit(p)} title="Editar"
+                className="opacity-0 group-hover:opacity-100 p-1 hover:text-primary transition-opacity">
+                <Pencil className="h-3 w-3" />
+              </button>
+              <button type="button" onClick={() => onDelete(p.id)} title="Eliminar"
+                className="opacity-0 group-hover:opacity-100 p-1 hover:text-destructive transition-opacity">
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── PlantillaModal (fuera del componente principal para evitar remount en cada render) ──
+function PlantillaModal({
+  plantillaModal, plantillaForm, setPlantillaForm, setPlantillaModal, onSave,
+  camposInstitucion, camposColeccion, camposUbicacion,
+}: {
+  plantillaModal: { tipo: TipoPlantilla; editing: Plantilla | null } | null
+  plantillaForm: { nombre: string; campos: Record<string, string> }
+  setPlantillaForm: React.Dispatch<React.SetStateAction<{ nombre: string; campos: Record<string, string> }>>
+  setPlantillaModal: (v: null) => void
+  onSave: () => void
+  camposInstitucion: { key: string; label: string; placeholder: string }[]
+  camposColeccion:   { key: string; label: string; placeholder: string }[]
+  camposUbicacion:   { key: string; label: string; placeholder: string }[]
+}) {
+  if (!plantillaModal) return null
+  const campos = plantillaModal.tipo === 'institucion' ? camposInstitucion
+               : plantillaModal.tipo === 'coleccion'   ? camposColeccion
+               : camposUbicacion
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-md rounded-lg border bg-background p-6 shadow-xl">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">
+            {plantillaModal.editing ? 'Editar plantilla' : 'Nueva plantilla'}
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              ({plantillaModal.tipo === 'institucion' ? 'Institución' : plantillaModal.tipo === 'coleccion' ? 'Colección' : 'Ubicación'})
+            </span>
+          </h2>
+          <Button type="button" variant="ghost" size="icon" onClick={() => setPlantillaModal(null)}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+          <div className="space-y-1">
+            <Label className="text-xs font-medium">Nombre de la plantilla *</Label>
+            <Input
+              placeholder="Ej. UNIP - Mocoa"
+              value={plantillaForm.nombre}
+              onChange={e => setPlantillaForm(p => ({ ...p, nombre: e.target.value }))}
+            />
+          </div>
+          {campos.map(c => (
+            <div key={c.key} className="space-y-1">
+              <Label className="text-xs font-medium">{c.label}</Label>
+              <Input
+                placeholder={c.placeholder}
+                value={plantillaForm.campos[c.key] || ''}
+                onChange={e => setPlantillaForm(p => ({ ...p, campos: { ...p.campos, [c.key]: e.target.value } }))}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
+          <Button type="button" variant="outline" onClick={() => setPlantillaModal(null)}>Cancelar</Button>
+          <Button type="button" onClick={onSave} disabled={!plantillaForm.nombre.trim()}>
+            <Save className="mr-2 h-4 w-4" />{plantillaModal.editing ? 'Guardar cambios' : 'Crear plantilla'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function NuevaPlantaPage() {
   const router = useRouter()
@@ -44,6 +232,229 @@ export default function NuevaPlantaPage() {
   const allVisited = REQUIRED_TABS.every(t => visitedTabs.has(t))
   const canPublish = allSaved || allVisited
 
+  // ── Estados para features de asistencia ─────────────────────────────────────
+  const [gbifLoading, setGbifLoading] = useState(false)
+  const [gpsLoading, setGpsLoading] = useState(false)
+  const [copySearch, setCopySearch] = useState('')
+  const [copyResults, setCopyResults] = useState<any[]>([])
+  const [copySearching, setCopySearching] = useState(false)
+  const [showCopyModal, setShowCopyModal] = useState(false)
+
+  // ── Plantillas CRUD ───────────────────────────────────────────────────────
+  const [plantillas, setPlantillas] = useState<Plantilla[]>([])
+  const [plantillaMenu, setPlantillaMenu] = useState<TipoPlantilla | null>(null) // qué menú dropdown está abierto
+  const [plantillaModal, setPlantillaModal] = useState<{ tipo: TipoPlantilla; editing: Plantilla | null } | null>(null)
+  const [plantillaForm, setPlantillaForm] = useState<{ nombre: string; campos: Record<string, string> }>({ nombre: '', campos: {} })
+
+  useEffect(() => { setPlantillas(loadPlantillas()) }, [])
+
+  const CAMPOS_INSTITUCION: { key: string; label: string; placeholder: string }[] = [
+    { key: 'institutionCode', label: 'Nombre de la institución', placeholder: 'Institución Universitaria del Putumayo (UNIP)' },
+    { key: 'institutionID',   label: 'NIT / ID institución',     placeholder: '800247940' },
+    { key: 'basisOfRecord',   label: 'Base del registro',        placeholder: 'preservedSpecimen' },
+    { key: 'type',            label: 'Tipo',                     placeholder: 'physicalObject' },
+  ]
+
+  const CAMPOS_COLECCION: { key: string; label: string; placeholder: string }[] = [
+    { key: 'collectionCode', label: 'Código de la colección',   placeholder: 'HEAA' },
+    { key: 'collectionID',   label: 'ID colección (GRSciColl)', placeholder: 'HEAA-ITP' },
+  ]
+
+  const CAMPOS_UBICACION: { key: string; label: string; placeholder: string }[] = [
+    { key: 'country',       label: 'País',         placeholder: 'Colombia' },
+    { key: 'stateProvince', label: 'Departamento', placeholder: 'Putumayo' },
+    { key: 'county',        label: 'Municipio',    placeholder: 'Mocoa' },
+  ]
+
+  const openNewPlantilla = (tipo: TipoPlantilla) => {
+    const camposDefault: Record<string, string> = {}
+    const lista = tipo === 'institucion' ? CAMPOS_INSTITUCION : tipo === 'coleccion' ? CAMPOS_COLECCION : CAMPOS_UBICACION
+    lista.forEach(c => { camposDefault[c.key] = '' })
+    setPlantillaForm({ nombre: '', campos: camposDefault })
+    setPlantillaModal({ tipo, editing: null })
+    setPlantillaMenu(null)
+  }
+
+  const openEditPlantilla = (p: Plantilla) => {
+    setPlantillaForm({ nombre: p.nombre, campos: { ...p.campos } })
+    setPlantillaModal({ tipo: p.tipo, editing: p })
+    setPlantillaMenu(null)
+  }
+
+  const savePlantillaForm = () => {
+    if (!plantillaModal || !plantillaForm.nombre.trim()) return
+    const updated = plantillaModal.editing
+      ? plantillas.map(p => p.id === plantillaModal.editing!.id
+          ? { ...p, nombre: plantillaForm.nombre, campos: plantillaForm.campos }
+          : p)
+      : [...plantillas, { id: crypto.randomUUID(), nombre: plantillaForm.nombre, tipo: plantillaModal.tipo, campos: plantillaForm.campos }]
+    setPlantillas(updated)
+    savePlantillas(updated)
+    setPlantillaModal(null)
+    toast({ title: plantillaModal.editing ? 'Plantilla actualizada' : 'Plantilla creada' })
+  }
+
+  const deletePlantilla = (id: string) => {
+    const updated = plantillas.filter(p => p.id !== id)
+    setPlantillas(updated)
+    savePlantillas(updated)
+    toast({ title: 'Plantilla eliminada' })
+  }
+
+  const applyPlantilla = (p: Plantilla) => {
+    setFormData(prev => ({ ...prev, ...p.campos }))
+    setPlantillaMenu(null)
+    toast({ title: `Plantilla "${p.nombre}" aplicada`, description: 'Revisa y ajusta los campos pre-llenados.' })
+  }
+
+  // Autocompletado por campo
+  const [acSuggestions, setAcSuggestions] = useState<Record<string, AutocompleteItem[]>>({})
+  const [acOpen, setAcOpen] = useState<Record<string, boolean>>({})
+  const acTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+
+  // ── Autocompletar desde BD ────────────────────────────────────────────────
+  const handleAutocomplete = (field: string, value: string, acType: 'all' | 'scientific' | 'common' | 'family') => {
+    handleInputChange(field, value)
+    clearTimeout(acTimers.current[field])
+    if (value.length < 2) { setAcSuggestions(p => ({ ...p, [field]: [] })); return }
+    acTimers.current[field] = setTimeout(async () => {
+      try {
+        const res = await apiService.getAutocomplete(value, acType)
+        if (res.success && res.data) {
+          setAcSuggestions(p => ({ ...p, [field]: res.data! }))
+          setAcOpen(p => ({ ...p, [field]: true }))
+        }
+      } catch {}
+    }, 300)
+  }
+
+  const pickSuggestion = (field: string, value: string) => {
+    handleInputChange(field, value)
+    setAcOpen(p => ({ ...p, [field]: false }))
+    setAcSuggestions(p => ({ ...p, [field]: [] }))
+  }
+
+  // ── GBIF: rellenar taxonomía desde nombre científico ─────────────────────
+  // La API /species/match devuelve authorship dentro de scientificName, no como campo separado.
+  // Ej: scientificName="Solanum abiaguense Knapp", canonicalName="Solanum abiaguense"
+  // → authorship = "Knapp"
+  const fetchGbifTaxonomy = async () => {
+    const name = formData.scientificName.trim()
+    if (!name) return
+    setGbifLoading(true)
+    try {
+      const res = await fetch(`https://api.gbif.org/v1/species/match?name=${encodeURIComponent(name)}&kingdom=Plantae`, {
+        headers: { 'Accept': 'application/json' }
+      })
+      if (!res.ok) throw new Error(`GBIF respondió ${res.status}`)
+      const data = await res.json()
+      if (data.matchType === 'NONE') {
+        toast({ title: 'No encontrado en GBIF', description: `"${name}" no arrojó resultados. Verifica el nombre.`, variant: 'destructive' })
+        return
+      }
+      // Extraer autoría: scientificName - canonicalName
+      const authorship = (data.scientificName && data.canonicalName)
+        ? data.scientificName.replace(data.canonicalName, '').trim()
+        : ''
+      // Epíteto: segunda palabra de canonicalName (ej. "Solanum abiaguense" → "abiaguense")
+      const epithet = data.canonicalName?.split(' ')[1] || data.species?.split(' ')[1] || ''
+      // rank: GBIF devuelve "SPECIES" en mayúsculas
+      const rank = data.rank?.toLowerCase() || ''
+
+      setFormData(prev => ({
+        ...prev,
+        family:                   data.family   || prev.family,
+        orderName:                data.order    || prev.orderName,
+        class:                    data.class    || prev.class,
+        phylum:                   data.phylum   || prev.phylum,
+        kingdom:                  data.kingdom  || prev.kingdom,
+        genus:                    data.genus    || prev.genus,
+        specificEpithet:          epithet       || prev.specificEpithet,
+        scientificNameAuthorship: authorship    || prev.scientificNameAuthorship,
+        taxonRank:                rank          || prev.taxonRank,
+      }))
+      toast({ title: '✅ Taxonomía completada desde GBIF', description: `Familia: ${data.family} · Confianza: ${data.confidence}%` })
+    } catch (err: any) {
+      toast({ title: 'Error al consultar GBIF', description: err.message || 'Verifica tu conexión a internet.', variant: 'destructive' })
+    } finally {
+      setGbifLoading(false)
+    }
+  }
+
+  // ── GPS: rellenar coordenadas decimales ──────────────────────────────────
+  const fetchGPS = () => {
+    if (!navigator.geolocation) {
+      toast({ title: 'GPS no disponible', description: 'Tu dispositivo no soporta geolocalización.', variant: 'destructive' })
+      return
+    }
+    setGpsLoading(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setFormData(prev => ({
+          ...prev,
+          decimalLatitude:  pos.coords.latitude.toFixed(6),
+          decimalLongitude: pos.coords.longitude.toFixed(6),
+        }))
+        toast({ title: '📍 Coordenadas obtenidas', description: `Lat: ${pos.coords.latitude.toFixed(6)} · Lon: ${pos.coords.longitude.toFixed(6)}` })
+        setGpsLoading(false)
+      },
+      () => {
+        toast({ title: 'No se pudo obtener ubicación', description: 'Permite el acceso a la ubicación en tu navegador.', variant: 'destructive' })
+        setGpsLoading(false)
+      }
+    )
+  }
+
+  // ── Copiar desde espécimen existente ─────────────────────────────────────
+  const searchForCopy = async (q: string) => {
+    setCopySearch(q)
+    if (q.length < 2) { setCopyResults([]); return }
+    setCopySearching(true)
+    try {
+      const res = await apiService.getPlants({ search: q, limit: 8 })
+      if (res.success && res.data) setCopyResults(res.data.plants)
+    } catch {}
+    setCopySearching(false)
+  }
+
+  const copyFromPlant = async (id: number) => {
+    try {
+      const res = await apiService.getPlantById(id)
+      if (!res.success || !res.data) return
+      const p = res.data
+      setFormData(prev => ({
+        ...prev,
+        scientificName:          p.scientific_name          || prev.scientificName,
+        scientificNameAuthorship:p.scientific_name_authorship || prev.scientificNameAuthorship,
+        family:                  p.family                   || prev.family,
+        genus:                   p.genus                    || prev.genus,
+        specificEpithet:         p.specific_epithet         || prev.specificEpithet,
+        infraspecificEpithet:    p.infraspecific_epithet    || prev.infraspecificEpithet,
+        taxonRank:               p.taxon_rank               || prev.taxonRank,
+        vernacularName:          p.vernacular_name          || prev.vernacularName,
+        orderName:               p.order_name               || prev.orderName,
+        class:                   p.class_name               || prev.class,
+        phylum:                  p.phylum                   || prev.phylum,
+        kingdom:                 p.kingdom                  || prev.kingdom,
+        subfamily:               p.subfamily                || prev.subfamily,
+        subgenus:                p.subgenus                 || prev.subgenus,
+        stateProvince:           p.state_province           || prev.stateProvince,
+        county:                  p.county                   || prev.county,
+        municipality:            p.municipality             || prev.municipality,
+        habitat:                 p.habitat                  || prev.habitat,
+        recordedBy:              p.recorded_by              || prev.recordedBy,
+        samplingProtocol:        p.sampling_protocol        || prev.samplingProtocol,
+        // catalogNumber y occurrenceID NO se copian — deben ser únicos
+      }))
+      setShowCopyModal(false)
+      setCopySearch('')
+      setCopyResults([])
+      toast({ title: '📋 Datos copiados', description: `Basado en "${p.scientific_name}". Número de catálogo y ID de ocurrencia no se copiaron.` })
+    } catch {
+      toast({ title: 'Error al copiar', variant: 'destructive' })
+    }
+  }
+
   useEffect(() => {
     return () => {
       uploadedImages.forEach(image => {
@@ -58,7 +469,7 @@ export default function NuevaPlantaPage() {
     basisOfRecord: '',
     type: '',
     // Cols 4-7: Institución
-    institutionCode: 'Instituto Tecnológico del Putumayo (ITP)',
+    institutionCode: 'Institución Universitaria del Putumayo (UNIP)',
     institutionID: '800.247.940',
     collectionCode: 'HEAA',
     collectionID: '',
@@ -127,6 +538,43 @@ export default function NuevaPlantaPage() {
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  // ── Ref para saber si occurrenceID fue editado manualmente ─────────────────
+  const occurrenceManualRef = useRef(false)
+
+  // Auto-generar occurrenceID cuando cambia catalogNumber
+  useEffect(() => {
+    if (!occurrenceManualRef.current && formData.catalogNumber.trim()) {
+      setFormData(prev => ({ ...prev, occurrenceID: `HEAA-${prev.catalogNumber.trim()}` }))
+    }
+  }, [formData.catalogNumber])
+
+  // ── Sugerir siguiente número de catálogo desde el código de colección ───────
+  const [catalogLoading, setCatalogLoading] = useState(false)
+  const suggestCatalogNumber = async () => {
+    const prefix = (formData.collectionCode || 'HEAA').trim().toUpperCase()
+    setCatalogLoading(true)
+    try {
+      // Buscar por catalog_number con el prefijo exacto, en todos los estados
+      const res = await apiService.getPlants({ catalog_number: prefix, status: 'all', limit: 500 })
+      if (res.success && res.data) {
+        const plants = res.data.plants as any[]
+        const nums = plants
+          .map((p: any) => (p.catalog_number || '').toUpperCase())
+          .filter((c: string) => c.startsWith(prefix + '-'))
+          .map((c: string) => parseInt(c.slice(prefix.length + 1), 10))
+          .filter((n: number) => !isNaN(n))
+        const next = nums.length > 0 ? Math.max(...nums) + 1 : 1
+        handleInputChange('catalogNumber', `${prefix}-${String(next).padStart(3, '0')}`)
+      } else {
+        handleInputChange('catalogNumber', `${prefix}-001`)
+      }
+    } catch {
+      handleInputChange('catalogNumber', `${prefix}-001`)
+    } finally {
+      setCatalogLoading(false)
+    }
   }
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -235,7 +683,7 @@ export default function NuevaPlantaPage() {
       date_updated: dateToNull(formData.dateUpdated),
       type_status: 'none',
       // Institución (cols 4-7)
-      institution_code: formData.institutionCode || 'Instituto Tecnológico del Putumayo (ITP)',
+      institution_code: formData.institutionCode || 'Institución Universitaria del Putumayo (UNIP)',
       institution_id: formData.institutionID || '800.247.940',
       collection_code: formData.collectionCode || 'HEAA',
       collection_id: formData.collectionID || null,
@@ -488,10 +936,61 @@ export default function NuevaPlantaPage() {
           <h1 className="text-3xl font-bold tracking-tight">Añadir Nueva Planta</h1>
           <p className="text-muted-foreground">Completa el formulario para añadir un nuevo espécimen al herbario</p>
         </div>
-        <Button asChild variant="outline">
-          <Link href="/admin/plantas"><ArrowLeft className="mr-2 h-4 w-4" />Volver</Link>
-        </Button>
+        <div className="flex gap-2">
+          {/* Basado en... */}
+          <Button type="button" variant="outline" onClick={() => setShowCopyModal(true)}>
+            <Copy className="mr-2 h-4 w-4" />Basado en...
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/admin/plantas"><ArrowLeft className="mr-2 h-4 w-4" />Volver</Link>
+          </Button>
+        </div>
       </div>
+
+      {/* Modal gestión plantillas */}
+      <PlantillaModal
+        plantillaModal={plantillaModal}
+        plantillaForm={plantillaForm}
+        setPlantillaForm={setPlantillaForm}
+        setPlantillaModal={setPlantillaModal}
+        onSave={savePlantillaForm}
+        camposInstitucion={CAMPOS_INSTITUCION}
+        camposColeccion={CAMPOS_COLECCION}
+        camposUbicacion={CAMPOS_UBICACION}
+      />
+
+      {/* Modal copiar desde espécimen */}
+      {showCopyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-lg border bg-background p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Basado en espécimen existente</h2>
+              <Button type="button" variant="ghost" size="icon" onClick={() => { setShowCopyModal(false); setCopySearch(''); setCopyResults([]) }}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground mb-3">Busca una planta existente para copiar sus datos taxonómicos y de colecta. El número de catálogo e ID no se copian.</p>
+            <div className="relative">
+              <Input placeholder="Nombre científico, familia, género..." value={copySearch}
+                onChange={e => searchForCopy(e.target.value)} autoFocus />
+              {copySearching && <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />}
+            </div>
+            <div className="mt-2 max-h-60 overflow-y-auto rounded-md border">
+              {copyResults.length === 0 && copySearch.length >= 2 && !copySearching && (
+                <p className="p-4 text-sm text-muted-foreground text-center">Sin resultados</p>
+              )}
+              {copyResults.map(plant => (
+                <button key={plant.id} type="button"
+                  className="w-full px-4 py-3 text-left text-sm hover:bg-muted border-b last:border-0 transition-colors"
+                  onClick={() => copyFromPlant(plant.id)}>
+                  <p className="font-medium italic">{plant.scientific_name}</p>
+                  <p className="text-xs text-muted-foreground">{plant.family} · {plant.catalog_number}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-8">
         <Tabs
@@ -533,18 +1032,28 @@ export default function NuevaPlantaPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="occurrenceID">ID del registro biológico</Label>
-                    <Input id="occurrenceID" placeholder="Ej. AO4604"
-                      value={formData.occurrenceID} onChange={e => handleInputChange('occurrenceID', e.target.value)} />
+                    <div className="relative">
+                      <Input id="occurrenceID" placeholder="Se genera automáticamente desde el N° de catálogo"
+                        value={formData.occurrenceID}
+                        onChange={e => {
+                          occurrenceManualRef.current = true
+                          handleInputChange('occurrenceID', e.target.value)
+                        }} />
+                      {!occurrenceManualRef.current && formData.occurrenceID && (
+                        <span className="absolute right-2 top-2 text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Auto</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Se genera como <code>HEAA-{'{'}N° catálogo{'}'}</code>. Puedes editarlo.</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="basisOfRecord">Base del registro</Label>
                     <Select value={formData.basisOfRecord} onValueChange={v => handleInputChange('basisOfRecord', v)}>
                       <SelectTrigger id="basisOfRecord"><SelectValue placeholder="Selecciona una opción" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="preservedSpecimen">PreservedSpecimen</SelectItem>
-                        <SelectItem value="livingSpecimen">LivingSpecimen</SelectItem>
-                        <SelectItem value="fossilSpecimen">FossilSpecimen</SelectItem>
-                        <SelectItem value="humanObservation">HumanObservation</SelectItem>
+                        <SelectItem value="preservedSpecimen" title="Espécimen físico preservado (prensado, secado, alcohol). Aplica a la mayoría de colecciones de herbario.">Espécimen preservado</SelectItem>
+                        <SelectItem value="livingSpecimen" title="Organismo vivo mantenido en cultivo, jardín botánico o laboratorio.">Espécimen vivo</SelectItem>
+                        <SelectItem value="fossilSpecimen" title="Restos o impresiones de organismos preservados en roca u otro medio geológico.">Espécimen fósil</SelectItem>
+                        <SelectItem value="humanObservation" title="Registro basado en observación directa sin colecta de material físico.">Observación humana</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -555,10 +1064,10 @@ export default function NuevaPlantaPage() {
                     <Select value={formData.type} onValueChange={v => handleInputChange('type', v)}>
                       <SelectTrigger id="type"><SelectValue placeholder="Selecciona un tipo" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="physicalObject">PhysicalObject</SelectItem>
-                        <SelectItem value="event">Event</SelectItem>
-                        <SelectItem value="location">Location</SelectItem>
-                        <SelectItem value="identification">Identification</SelectItem>
+                        <SelectItem value="physicalObject" title="Objeto físico tangible: lámina de herbario, frasco con tejido, etc. Es el valor estándar para especímenes de herbario.">Objeto físico</SelectItem>
+                        <SelectItem value="event" title="Evento de colecta o muestreo en campo, sin espécimen físico asociado.">Evento</SelectItem>
+                        <SelectItem value="location" title="Registro centrado en el lugar geográfico, no en el organismo.">Localidad</SelectItem>
+                        <SelectItem value="identification" title="Registro de la determinación taxonómica del espécimen.">Identificación</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -566,34 +1075,74 @@ export default function NuevaPlantaPage() {
               </CardContent>
             </Card>
 
-            {/* cols 4-7: Institución */}
+            {/* cols 4-5: Institución */}
             <Card>
               <CardHeader>
-                <CardTitle>Información Institucional</CardTitle>
-                <CardDescription>Datos de la institución y la colección</CardDescription>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle>Institución</CardTitle>
+                    <CardDescription>Datos de la institución custodia del herbario</CardDescription>
+                  </div>
+                  <PlantillaDropdown
+                    tipo="institucion"
+                    plantillas={plantillas}
+                    open={plantillaMenu === 'institucion'}
+                    onToggle={() => setPlantillaMenu(p => p === 'institucion' ? null : 'institucion')}
+                    onApply={applyPlantilla}
+                    onNew={() => openNewPlantilla('institucion')}
+                    onEdit={openEditPlantilla}
+                    onDelete={deletePlantilla}
+                  />
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="institutionCode">Código de la institución</Label>
+                    <Label htmlFor="institutionCode">Nombre de la institución</Label>
                     <Input id="institutionCode" value={formData.institutionCode}
                       onChange={e => handleInputChange('institutionCode', e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="institutionID">ID de la institución</Label>
+                    <Label htmlFor="institutionID">NIT / ID de la institución</Label>
                     <Input id="institutionID" value={formData.institutionID}
                       onChange={e => handleInputChange('institutionID', e.target.value)} />
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* cols 6-7: Colección */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle>Colección</CardTitle>
+                    <CardDescription>Código e ID de la colección específica donde se ingresa el espécimen</CardDescription>
+                  </div>
+                  <PlantillaDropdown
+                    tipo="coleccion"
+                    plantillas={plantillas}
+                    open={plantillaMenu === 'coleccion'}
+                    onToggle={() => setPlantillaMenu(p => p === 'coleccion' ? null : 'coleccion')}
+                    onApply={applyPlantilla}
+                    onNew={() => openNewPlantilla('coleccion')}
+                    onEdit={openEditPlantilla}
+                    onDelete={deletePlantilla}
+                  />
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="collectionCode">Código de la colección</Label>
-                    <Input id="collectionCode" value={formData.collectionCode}
+                    <Input id="collectionCode" placeholder="Ej. HEAA-MOC"
+                      value={formData.collectionCode}
                       onChange={e => handleInputChange('collectionCode', e.target.value)} />
+                    <p className="text-xs text-muted-foreground">El catálogo se generará como <strong>{formData.collectionCode || 'CÓDIGO'}-001</strong></p>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="collectionID">ID de la colección</Label>
-                    <Input id="collectionID" placeholder="Ej. 000233"
+                    <Label htmlFor="collectionID">ID de la colección (GRSciColl)</Label>
+                    <Input id="collectionID" placeholder="Ej. HEAA-ITP"
                       value={formData.collectionID} onChange={e => handleInputChange('collectionID', e.target.value)} />
                   </div>
                 </div>
@@ -610,8 +1159,19 @@ export default function NuevaPlantaPage() {
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="catalogNumber">Número de catálogo *</Label>
-                    <Input id="catalogNumber" placeholder="Ej. 000233" required
-                      value={formData.catalogNumber} onChange={e => handleInputChange('catalogNumber', e.target.value)} />
+                    <div className="flex gap-2">
+                      <Input id="catalogNumber"
+                        placeholder={`Ej. ${formData.collectionCode || 'HEAA'}-001`}
+                        required
+                        value={formData.catalogNumber}
+                        onChange={e => handleInputChange('catalogNumber', e.target.value)} />
+                      <Button type="button" variant="outline" size="sm" onClick={suggestCatalogNumber}
+                        disabled={catalogLoading || !formData.collectionCode.trim()}
+                        title="Generar siguiente número basado en el código de colección">
+                        {catalogLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Hash className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Presiona # para auto-generar el siguiente número de la colección</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="recordNumber">Número de registro</Label>
@@ -639,17 +1199,25 @@ export default function NuevaPlantaPage() {
               </CardHeader>
               <CardContent className="space-y-4">
 
-                {/* cols 11-12: cantidad organismo */}
+                {/* cols 11-12: cantidad organismo — tipo como Select */}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="organismQuantity">Cantidad del organismo</Label>
-                    <Input id="organismQuantity" placeholder="Cantidad"
+                    <Input id="organismQuantity" placeholder="Ej. 3"
                       value={formData.organismQuantity} onChange={e => handleInputChange('organismQuantity', e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="organismQuantityType">Tipo de cantidad</Label>
-                    <Input id="organismQuantityType" placeholder="Ej. Individuos, muestras"
-                      value={formData.organismQuantityType} onChange={e => handleInputChange('organismQuantityType', e.target.value)} />
+                    <Select value={formData.organismQuantityType} onValueChange={v => handleInputChange('organismQuantityType', v)}>
+                      <SelectTrigger id="organismQuantityType"><SelectValue placeholder="Selecciona tipo" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="individuos">Individuos</SelectItem>
+                        <SelectItem value="muestras">Muestras</SelectItem>
+                        <SelectItem value="ramets">Ramets</SelectItem>
+                        <SelectItem value="colonias">Colonias</SelectItem>
+                        <SelectItem value="parcelas">Parcelas</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
@@ -669,8 +1237,17 @@ export default function NuevaPlantaPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="preparation">Preparaciones</Label>
-                    <Input id="preparation" placeholder="Ej. Exsicado botánico"
-                      value={formData.preparation} onChange={e => handleInputChange('preparation', e.target.value)} />
+                    <Select value={formData.preparation} onValueChange={v => handleInputChange('preparation', v)}>
+                      <SelectTrigger id="preparation"><SelectValue placeholder="Tipo de preparación" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="exsicado">Exsicado botánico</SelectItem>
+                        <SelectItem value="muestra_tejido">Muestra de tejido</SelectItem>
+                        <SelectItem value="semillas">Semillas</SelectItem>
+                        <SelectItem value="polen">Polen</SelectItem>
+                        <SelectItem value="fotografia">Solo fotografía</SelectItem>
+                        <SelectItem value="alcohol">En alcohol</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="disposition">Disposición</Label>
@@ -690,8 +1267,17 @@ export default function NuevaPlantaPage() {
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="samplingProtocol">Protocolo de muestreo</Label>
-                    <Input id="samplingProtocol" placeholder="Ej. Colección general"
-                      value={formData.samplingProtocol} onChange={e => handleInputChange('samplingProtocol', e.target.value)} />
+                    <Select value={formData.samplingProtocol} onValueChange={v => handleInputChange('samplingProtocol', v)}>
+                      <SelectTrigger id="samplingProtocol"><SelectValue placeholder="Selecciona protocolo" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="coleccion_general">Colección general</SelectItem>
+                        <SelectItem value="transecto">Transecto</SelectItem>
+                        <SelectItem value="parcela">Parcela</SelectItem>
+                        <SelectItem value="punto_conteo">Punto de conteo</SelectItem>
+                        <SelectItem value="oportunista">Oportunista</SelectItem>
+                        <SelectItem value="red_neblina">Red de neblina</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="eventDate">Fecha del evento</Label>
@@ -729,38 +1315,146 @@ export default function NuevaPlantaPage() {
           <TabsContent value="ubicacion" className="space-y-6 mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>Ubicación Geográfica</CardTitle>
-                <CardDescription>Información sobre la localidad donde se recolectó el espécimen</CardDescription>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle>Ubicación Geográfica</CardTitle>
+                    <CardDescription>Información sobre la localidad donde se recolectó el espécimen</CardDescription>
+                  </div>
+                  <PlantillaDropdown
+                    tipo="ubicacion"
+                    plantillas={plantillas}
+                    open={plantillaMenu === 'ubicacion'}
+                    onToggle={() => setPlantillaMenu(p => p === 'ubicacion' ? null : 'ubicacion')}
+                    onApply={applyPlantilla}
+                    onNew={() => openNewPlantilla('ubicacion')}
+                    onEdit={openEditPlantilla}
+                    onDelete={deletePlantilla}
+                  />
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
 
-                {/* cols 21-22: country, stateProvince */}
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="country">País</Label>
-                    <Input id="country" placeholder="Ej. Colombia"
-                      value={formData.country} onChange={e => handleInputChange('country', e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="stateProvince">Departamento</Label>
-                    <Input id="stateProvince" placeholder="Ej. Putumayo"
-                      value={formData.stateProvince} onChange={e => handleInputChange('stateProvince', e.target.value)} />
-                  </div>
-                </div>
+                {/* cols 21-22: country, stateProvince — selects cascados */}
+                {(() => {
+                  const PAISES = [
+                    'Colombia','Venezuela','Ecuador','Perú','Brasil','Bolivia','Argentina','Chile',
+                    'Paraguay','Uruguay','México','Guatemala','Honduras','El Salvador','Nicaragua',
+                    'Costa Rica','Panamá','Cuba','España','Estados Unidos','Otro',
+                  ]
+                  const DEPARTAMENTOS: Record<string, string[]> = {
+                    Colombia: [
+                      'Amazonas','Antioquia','Arauca','Atlántico','Bolívar','Boyacá','Caldas',
+                      'Caquetá','Casanare','Cauca','Cesar','Chocó','Córdoba','Cundinamarca',
+                      'Guainía','Guaviare','Huila','La Guajira','Magdalena','Meta','Nariño',
+                      'Norte de Santander','Putumayo','Quindío','Risaralda',
+                      'San Andrés y Providencia','Santander','Sucre','Tolima',
+                      'Valle del Cauca','Vaupés','Vichada','Bogotá D.C.',
+                    ],
+                  }
+                  const MUNICIPIOS: Record<string, string[]> = {
+                    Amazonas: ['Leticia','Puerto Nariño','El Encanto','La Chorrera','La Pedrera','La Victoria','Mirití-Paraná','Puerto Alegría','Puerto Arica','Puerto Santander','Tarapacá'],
+                    Antioquia: ['Medellín','Abejorral','Abriaquí','Alejandría','Amagá','Amalfi','Andes','Angelópolis','Angostura','Anorí','Anzá','Apartadó','Arboletes','Argelia','Armenia','Barbosa','Belmira','Bello','Betania','Betulia','Briceño','Buriticá','Cáceres','Caicedo','Caldas','Campamento','Cañasgordas','Caracolí','Caramanta','Carepa','Carolina','Caucasia','Chigorodó','Cisneros','Cocorná','Concepción','Concordia','Copacabana','Dabeiba','Donmatías','Ebéjico','El Bagre','El Carmen de Viboral','El Santuario','Entrerríos','Envigado','Fredonia','Frontino','Giraldo','Girardota','Gómez Plata','Granada','Guadalupe','Guarne','Guatapé','Heliconia','Hispania','Itagüí','Ituango','Jardín','Jericó','La Ceja','La Estrella','La Pintada','La Unión','Liborina','Maceo','Marinilla','Montebello','Murindó','Mutatá','Nariño','Necoclí','Nechí','Olaya','Peñol','Peque','Pueblorrico','Puerto Berrío','Puerto Nare','Puerto Triunfo','Remedios','Retiro','Rionegro','Sabanalarga','Sabaneta','Salgar','San Andrés de Cuerquia','San Carlos','San Francisco','San Jerónimo','San José de la Montaña','San Juan de Urabá','San Luis','San Pedro de los Milagros','San Pedro de Urabá','San Rafael','San Roque','San Vicente Ferrer','Santa Bárbara','Santa Rosa de Osos','Santo Domingo','Segovia','Sonsón','Sopetrán','Støfregard','Tarazá','Tarso','Titiribí','Toledo','Turbo','Uramita','Urrao','Valdivia','Valparaíso','Vegachí','Venecia','Vigía del Fuerte','Yalí','Yarumal','Yolombó','Yondó','Zaragoza'],
+                    Arauca: ['Arauca','Arauquita','Cravo Norte','Fortul','Puerto Rondón','Saravena','Tame'],
+                    Atlántico: ['Barranquilla','Baranoa','Campo de la Cruz','Candelaria','Galapa','Juan de Acosta','Luruaco','Malambo','Manatí','Palmar de Varela','Piojó','Polonuevo','Ponedera','Puerto Colombia','Repelón','Sabanagrande','Sabanalarga','Santa Lucía','Santo Tomás','Soledad','Suan','Tubará','Usiacurí'],
+                    Bolívar: ['Cartagena','Achí','Altos del Rosario','Arenal','Arjona','Arroyohondo','Barranco de Loba','Calamar','Cantagallo','Cicuco','Clemencia','Córdoba','El Carmen de Bolívar','El Guamo','El Peñón','Hatillo de Loba','Magangué','Mahates','Margarita','María La Baja','Mompós','Montecristo','Morales','Norosí','Pinillos','Regidor','Río Viejo','San Cristóbal','San Estanislao','San Fernando','San Jacinto','San Jacinto del Cauca','San Juan Nepomuceno','San Martín de Loba','San Pablo','Santa Catalina','Santa Rosa','Santa Rosa del Sur','Simití','Soplaviento','Talaigua Nuevo','Tiquisio','Turbaco','Turbaná','Villanueva','Zambrano'],
+                    Boyacá: ['Tunja','Almeida','Aquitania','Arcabuco','Belén','Berbeo','Betéitiva','Boavita','Boyacá','Briceño','Buenavista','Busbanzá','Caldas','Campohermoso','Cerinza','Chinavita','Chiquinquirá','Chíquiza','Chiscas','Chita','Chitaraque','Chivatá','Ciénega','Cómbita','Coper','Corrales','Covarachía','Cubará','Cucaita','Cuítiva','Duitama','El Cocuy','El Espino','Firavitoba','Floresta','Gachantivá','Gameza','Garagoa','Guacamayas','Guateque','Guayatá','Güicán','Iza','Jenesano','Jericó','La Capilla','La Uvita','La Victoria','Labranzagrande','Macanal','Maripí','Miraflores','Mongua','Monguí','Moniquirá','Motavita','Muzo','Nobsa','Nuevo Colón','Oicatá','Otanche','Pachavita','Páez','Paipa','Pajarito','Panqueba','Pauna','Paya','Paz de Río','Pesca','Pisba','Puerto Boyacá','Quípama','Ramiriquí','Ráquira','Rondón','Saboyá','Sáchica','Samacá','San Eduardo','San José de Pare','San Luis de Gaceno','San Mateo','San Miguel de Sema','San Pablo de Borbur','Santana','Santa María','Santa Rosa de Viterbo','Santa Sofía','Sativanorte','Sativasur','Siachoque','Soatá','Socotá','Socha','Sogamoso','Somondoco','Sora','Soracá','Sotaquirá','Susacón','Sutamarchán','Sutatenza','Tasco','Tenza','Tibaná','Tibasosa','Tinjacá','Tipacoque','Toca','Togüí','Tópaga','Tota','Turmequé','Tuta','Tutazá','Umbita','Ventaquemada','Villa de Leyva','Viracachá','Zetaquira'],
+                    Caldas: ['Manizales','Aguadas','Anserma','Aranzazu','Belalcázar','Chinchiná','Filadelfia','La Dorada','La Merced','Manzanares','Marmato','Marquetalia','Marulanda','Neira','Norcasia','Pácora','Palestina','Pensilvania','Riosucio','Robledo','Salamina','Samaná','San José','Supía','Victoria','Villamaría','Viterbo'],
+                    Caquetá: ['Florencia','Albania','Belén de los Andaquíes','Cartagena del Chairá','Curillo','El Doncello','El Paujil','La Montañita','Milán','Morelia','Puerto Rico','San José del Fragua','San Vicente del Caguán','Solano','Solita','Valparaíso'],
+                    Casanare: ['Yopal','Aguazul','Chámeza','Hato Corozal','La Salina','Maní','Monterrey','Nunchía','Orocué','Paz de Ariporo','Pore','Recetor','Sabanalarga','Sácama','San Luis de Palenque','Támara','Tauramena','Trinidad','Villanueva'],
+                    Cauca: ['Popayán','Almaguer','Argelia','Balboa','Bolívar','Buenos Aires','Cajibío','Caldono','Caloto','Corinto','El Tambo','Florencia','Guachené','Guapi','Inzá','Jambaló','La Sierra','La Vega','López de Micay','Mercaderes','Miranda','Morales','Padilla','Páez','Patía','Piamonte','Piendamó','Puerto Tejada','Puracé','Rosas','San Sebastián','Santa Rosa','Santander de Quilichao','Silvia','Sotara','Suárez','Sucre','Timbío','Timbiquí','Toribío','Totoró','Villa Rica'],
+                    Cesar: ['Valledupar','Aguachica','Agustín Codazzi','Astrea','Becerril','Bosconia','Chimichagua','Chiriguaná','Curumaní','El Copey','El Paso','Gamarra','González','La Gloria','La Jagua de Ibirico','La Paz','Manaure','Pailitas','Pelaya','Pueblo Bello','Río de Oro','San Alberto','San Diego','San Martín','Tamalameque'],
+                    Chocó: ['Quibdó','Acandí','Alto Baudó','Atrato','Bagadó','Bahía Solano','Bajo Baudó','Bojayá','Carmen del Darién','Cértegui','Condoto','El Cantón del San Pablo','El Carmen de Atrato','El Litoral del San Juan','Istmina','Juradó','Lloró','Medio Atrato','Medio Baudó','Medio San Juan','Nóvita','Nuquí','Río Iro','Río Quito','Riosucio','San José del Palmar','Sipí','Tadó','Unguía','Unión Panamericana'],
+                    Córdoba: ['Montería','Ayapel','Buenavista','Canalete','Cereté','Chimá','Chinú','Ciénaga de Oro','Cotorra','La Apartada','Lorica','Los Córdobas','Momil','Montelíbano','Moñitos','Planeta Rica','Pueblo Nuevo','Puerto Escondido','Puerto Libertador','Purísima','Sahagún','San Andrés de Sotavento','San Antero','San Bernardo del Viento','San Carlos','San José de Uré','San Pelayo','Santa Cruz de Lorica','Tierralta','Tuchín','Valencia'],
+                    Cundinamarca: ['Bogotá D.C.','Agua de Dios','Albán','Anapoima','Anolaima','Apulo','Arbeláez','Beltrán','Bituima','Bojacá','Cabrera','Cachipay','Cajicá','Caparrapí','Cáqueza','Carmen de Carupa','Chaguaní','Chía','Chipaque','Choachí','Chocontá','Cogua','Cota','Cucunubá','El Colegio','El Peñón','El Rosal','Facatativá','Fómeque','Fosca','Funza','Fúquene','Fusagasugá','Gachalá','Gachancipá','Gachetá','Gama','Girardot','Granada','Guachetá','Guaduas','Guasca','Guataquí','Guatavita','Guayabal de Síquima','Guayabetal','Gutiérrez','Jerusalén','Junín','La Calera','La Mesa','La Palma','La Peña','La Vega','Lenguazaque','Machetá','Madrid','Manta','Medina','Mosquera','Nariño','Nemocón','Nilo','Nimaima','Nocaima','Ospina Pérez','Pacho','Paime','Pandi','Paratebueno','Pasca','Puerto Salgar','Pulí','Quebradanegra','Quetame','Quipile','Ricaurte','San Antonio del Tequendama','San Bernardo','San Cayetano','San Francisco','San Juan de Río Seco','Sasaima','Sesquilé','Sibaté','Silvania','Simijaca','Soacha','Sopó','Subachoque','Suesca','Supatá','Susa','Sutatausa','Tabio','Tausa','Tena','Tibacuy','Tibirita','Tocaima','Tocancipá','Topaipí','Ubalá','Ubaque','Ubaté','Une','Útica','Venecia','Vergara','Vianí','Villagómez','Villapinzón','Villeta','Viotá','Yacopí','Zipacón','Zipaquirá'],
+                    Guainía: ['Inírida','Barranco Minas','Cacahual','La Guadalupe','Mapiripana','Morichal','Pana Pana','Puerto Colombia','San Felipe'],
+                    Guaviare: ['San José del Guaviare','Calamar','El Retorno','Miraflores'],
+                    Huila: ['Neiva','Acevedo','Agrado','Aipe','Algeciras','Altamira','Baraya','Campoalegre','Colombia','Elías','Garzón','Gigante','Guadalupe','Hobo','Iquira','Isnos','La Argentina','La Plata','Nataga','Oporapa','Paicol','Palermo','Palestina','Pital','Pitalito','Rivera','Saladoblanco','San Agustín','Santa María','Suaza','Tarqui','Tello','Teruel','Tesalia','Timaná','Villavieja','Yaguará'],
+                    'La Guajira': ['Riohacha','Albania','Barrancas','Dibulla','Distracción','El Molino','Fonseca','Hatonuevo','La Jagua del Pilar','Maicao','Manaure','San Juan del Cesar','Uribia','Urumita','Villanueva'],
+                    Magdalena: ['Santa Marta','Algarrobo','Aracataca','Ariguaní','Cerro de San Antonio','Chivolo','Ciénaga','Concordia','El Banco','El Piñón','El Retén','Fundación','Guamal','Nueva Granada','Pedraza','Pijiño del Carmen','Pivijay','Plato','Puebloviejo','Remolino','Sabanas de San Ángel','Salamina','San Sebastián de Buenavista','San Zenón','Santa Ana','Santa Bárbara de Pinto','Sitionuevo','Tenerife','Zapayán','Zona Bananera'],
+                    Meta: ['Villavicencio','Acacías','Barranca de Upía','Cabuyaro','Castilla la Nueva','Cubarral','Cumaral','El Calvario','El Castillo','El Dorado','Fuente de Oro','Granada','Guamal','La Macarena','La Uribe','Lejanías','Mapiripán','Mesetas','Puerto Concordia','Puerto Gaitán','Puerto Lleras','Puerto López','Puerto Rico','Restrepo','San Carlos de Guaroa','San Juan de Arama','San Juanito','San Martín','Vistahermosa'],
+                    Nariño: ['Pasto','Albán','Aldana','Ancuyá','Arboleda','Barbacoas','Belén','Buesaco','Chachagüí','Colón','Consacá','Contadero','Córdoba','Cuaspud','Cumbal','Cumbitara','El Charco','El Peñol','El Rosario','El Tablón de Gómez','El Tambo','Francisco Pizarro','Funes','Guachucal','Guaitarilla','Gualmatán','Iles','Imués','Ipiales','La Cruz','La Florida','La Llanada','La Tola','La Unión','Leiva','Linares','Los Andes','Magüí','Mallama','Mosquera','Nariño','Olaya Herrera','Ospina','Policarpa','Potosí','Providencia','Puerres','Pupiales','Ricaurte','Roberto Payán','Samaniego','San Bernardo','San Lorenzo','San Pablo','San Pedro de Cartago','Sandoná','Santa Bárbara','Santacruz','Sapuyes','Taminango','Tangua','Tumaco','Túquerres','Yacuanquer'],
+                    'Norte de Santander': ['Cúcuta','Ábrego','Arboledas','Bochalema','Bucarasica','Cáchira','Cácota','Chinácota','Chitagá','Convención','Cucutilla','Durania','El Carmen','El Tarra','El Zulia','Gramalote','Hacarí','Herrán','Labateca','La Esperanza','La Playa','Los Patios','Lourdes','Mutiscua','Ocaña','Pamplona','Pamplonita','Puerto Santander','Ragonvalia','Salazar','San Calixto','San Cayetano','Santiago','Sardinata','Silos','Teorama','Tibú','Toledo','Villa Caro','Villa del Rosario'],
+                    Putumayo: ['Mocoa','Colón','Orito','Puerto Asís','Puerto Caicedo','Puerto Guzmán','Puerto Leguízamo','San Francisco','San Miguel','Santiago','Sibundoy','Valle del Guamuez','Villagarzón'],
+                    Quindío: ['Armenia','Buenavista','Calarcá','Circasia','Córdoba','Filandia','Génova','La Tebaida','Montenegro','Pijao','Quimbaya','Salento'],
+                    Risaralda: ['Pereira','Apía','Balboa','Belén de Umbría','Dosquebradas','Guática','La Celia','La Virginia','Marsella','Mistrató','Pueblo Rico','Quinchía','Santa Rosa de Cabal','Santuario'],
+                    'San Andrés y Providencia': ['San Andrés','Providencia'],
+                    Santander: ['Bucaramanga','Aguada','Albania','Aratoca','Barbosa','Barichara','Barrancabermeja','Betulia','Bolívar','Cabrera','California','Capitanejo','Carcasí','Cepitá','Cerrito','Charalá','Charta','Chima','Chipatá','Cimitarra','Confines','Contratación','Coromoro','Curití','El Carmen de Chucurí','El Guacamayo','El Peñón','El Playón','Encino','Enciso','Floridablanca','Galán','Gámbita','Girón','Guaca','Guadalupe','Guapotá','Guavatá','Güepsa','Hato','Jesús María','Jordán','La Belleza','La Paz','Landázuri','Lebrija','Los Santos','Macaravita','Málaga','Matanza','Mogotes','Molagavita','Ocamonte','Oiba','Onzaga','Palmar','Palmas del Socorro','Páramo','Piedecuesta','Pinchote','Puente Nacional','Puerto Parra','Puerto Wilches','Rionegro','Sabana de Torres','San Andrés','San Benito','San Gil','San Joaquín','San José de Miranda','San Miguel','San Vicente de Chucurí','Santa Bárbara','Santa Helena del Opón','Simacota','Socorro','Suaita','Sucre','Suratá','Tona','Valle de San José','Vélez','Vetas','Villanueva','Zapatoca'],
+                    Sucre: ['Sincelejo','Buenavista','Caimito','Chalán','Colosó','Corozal','Coveñas','El Roble','Galeras','Guaranda','La Unión','Los Palmitos','Majagual','Morroa','Ovejas','Palmito','Sampués','San Benito Abad','San Juan de Betulia','San Marcos','San Onofre','San Pedro','Santiago de Tolú','Sincé','Sucre','Tolú Viejo'],
+                    Tolima: ['Ibagué','Alpujarra','Alvarado','Ambalema','Anzoátegui','Armero','Ataco','Cajamarca','Carmen de Apicalá','Casabianca','Chaparral','Coello','Coyaima','Cunday','Dolores','Espinal','Falan','Flandes','Fresno','Guamo','Herveo','Honda','Icononzo','Lérida','Líbano','Mariquita','Melgar','Murillo','Natagaima','Ortega','Palocabildo','Piedras','Planadas','Prado','Purificación','Rioblanco','Roncesvalles','Rovira','Saldaña','San Antonio','San Luis','Santa Isabel','Suárez','Valle de San Juan','Venadillo','Villahermosa','Villarrica'],
+                    'Valle del Cauca': ['Cali','Alcalá','Andalucía','Ansermanuevo','Argelia','Bolívar','Buenaventura','Buga','Bugalagrande','Caicedonia','Calima','Candelaria','Cartago','Dagua','El Águila','El Cairo','El Cerrito','El Dovio','El Darién','Florida','Ginebra','Guacarí','Jamundí','La Cumbre','La Unión','La Victoria','Obando','Palmira','Pradera','Restrepo','Riofrío','Roldanillo','San Pedro','Sevilla','Toro','Trujillo','Tuluá','Ulloa','Versalles','Vijes','Yotoco','Yumbo','Zarzal'],
+                    Vaupés: ['Mitú','Carurú','Pacoa','Papunaua','Taraira','Yavaraté'],
+                    Vichada: ['Puerto Carreño','Cumaribo','La Primavera','Santa Rosalía'],
+                    'Bogotá D.C.': ['Bogotá D.C.'],
+                  }
 
-                {/* cols 23-24: county, municipality */}
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="county">Municipio</Label>
-                    <Input id="county" placeholder="Ej. Mocoa"
-                      value={formData.county} onChange={e => handleInputChange('county', e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="municipality">Centro poblado / Cabecera municipal</Label>
-                    <Input id="municipality" placeholder="Ej. Las Mesas"
-                      value={formData.municipality} onChange={e => handleInputChange('municipality', e.target.value)} />
-                  </div>
-                </div>
+                  const deptos = DEPARTAMENTOS[formData.country] || []
+                  const municipios = MUNICIPIOS[formData.stateProvince] || []
+
+                  return (
+                    <>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="country">País</Label>
+                          <Select
+                            value={formData.country}
+                            onValueChange={v => {
+                              handleInputChange('country', v)
+                              handleInputChange('stateProvince', '')
+                              handleInputChange('county', '')
+                            }}
+                          >
+                            <SelectTrigger id="country"><SelectValue placeholder="Selecciona un país" /></SelectTrigger>
+                            <SelectContent>
+                              {PAISES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="stateProvince">Departamento / Región</Label>
+                          {deptos.length > 0 ? (
+                            <Select
+                              value={formData.stateProvince}
+                              onValueChange={v => {
+                                handleInputChange('stateProvince', v)
+                                handleInputChange('county', '')
+                              }}
+                            >
+                              <SelectTrigger id="stateProvince"><SelectValue placeholder="Selecciona un departamento" /></SelectTrigger>
+                              <SelectContent className="max-h-72">
+                                {deptos.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input id="stateProvince" placeholder="Ej. Putumayo"
+                              value={formData.stateProvince} onChange={e => handleInputChange('stateProvince', e.target.value)} />
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="county">Municipio</Label>
+                          {municipios.length > 0 ? (
+                            <Select value={formData.county} onValueChange={v => handleInputChange('county', v)}>
+                              <SelectTrigger id="county"><SelectValue placeholder="Selecciona un municipio" /></SelectTrigger>
+                              <SelectContent className="max-h-72">
+                                {municipios.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input id="county" placeholder="Ej. Mocoa"
+                              value={formData.county} onChange={e => handleInputChange('county', e.target.value)} />
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="municipality">Centro poblado / Vereda</Label>
+                          <Input id="municipality" placeholder="Ej. Las Mesas"
+                            value={formData.municipality} onChange={e => handleInputChange('municipality', e.target.value)} />
+                        </div>
+                      </div>
+                    </>
+                  )
+                })()}
 
                 {/* col 25: locality */}
                 <div className="space-y-2">
@@ -779,31 +1473,27 @@ export default function NuevaPlantaPage() {
                   </div>
                 </div>
 
-                {/* cols 27-28: decimalLatitude sexagesimal → decimal (orden Excel) */}
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="decimalLatitudeSexagesimal">Latitud sexagesimal</Label>
-                    <Input id="decimalLatitudeSexagesimal" placeholder={`Ej. 01°04'42"`}
-                      value={formData.decimalLatitudeSexagesimal} onChange={e => handleInputChange('decimalLatitudeSexagesimal', e.target.value)} />
+                {/* cols 27-30: coordenadas decimales + GPS */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Coordenadas (decimal)</Label>
+                    <Button type="button" variant="outline" size="sm" onClick={fetchGPS} disabled={gpsLoading}
+                      title="Obtener coordenadas automáticamente desde tu dispositivo">
+                      {gpsLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MapPin className="mr-2 h-4 w-4" />}
+                      {gpsLoading ? 'Obteniendo...' : 'Usar mi ubicación'}
+                    </Button>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="decimalLatitude">Latitud decimal</Label>
-                    <Input id="decimalLatitude" placeholder="Ej. 1.0934"
-                      value={formData.decimalLatitude} onChange={e => handleInputChange('decimalLatitude', e.target.value)} />
-                  </div>
-                </div>
-
-                {/* cols 29-30: decimalLongitude sexagesimal → decimal (orden Excel) */}
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="decimalLongitudeSexagesimal">Longitud sexagesimal</Label>
-                    <Input id="decimalLongitudeSexagesimal" placeholder={`Ej. 76°44'00"`}
-                      value={formData.decimalLongitudeSexagesimal} onChange={e => handleInputChange('decimalLongitudeSexagesimal', e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="decimalLongitude">Longitud decimal</Label>
-                    <Input id="decimalLongitude" placeholder="Ej. -76.7333"
-                      value={formData.decimalLongitude} onChange={e => handleInputChange('decimalLongitude', e.target.value)} />
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="decimalLatitude" className="text-xs text-muted-foreground">Latitud decimal</Label>
+                      <Input id="decimalLatitude" placeholder="Ej. 1.0934 (neg = Sur)"
+                        value={formData.decimalLatitude} onChange={e => handleInputChange('decimalLatitude', e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="decimalLongitude" className="text-xs text-muted-foreground">Longitud decimal</Label>
+                      <Input id="decimalLongitude" placeholder="Ej. -76.7333 (neg = Oeste)"
+                        value={formData.decimalLongitude} onChange={e => handleInputChange('decimalLongitude', e.target.value)} />
+                    </div>
                   </div>
                 </div>
 
@@ -815,6 +1505,30 @@ export default function NuevaPlantaPage() {
                       value={formData.geodetic} onChange={e => handleInputChange('geodetic', e.target.value)} />
                   </div>
                 </div>
+
+                {/* Vista previa en mapa */}
+                {formData.decimalLatitude && formData.decimalLongitude && (
+                  <div className="flex items-center gap-3 p-3 bg-muted/40 rounded-lg border">
+                    <MapPin className="h-4 w-4 text-primary shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">Coordenadas registradas</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formData.decimalLatitude}, {formData.decimalLongitude}
+                        {formData.county && ` · ${formData.county}`}
+                        {formData.stateProvince && `, ${formData.stateProvince}`}
+                      </p>
+                    </div>
+                    <a
+                      href={`/plantas?lat=${formData.decimalLatitude}&lng=${formData.decimalLongitude}&zoom=14`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline shrink-0"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      Ver en mapa
+                    </a>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -843,18 +1557,6 @@ export default function NuevaPlantaPage() {
                       value={formData.dateIdentified} onChange={e => handleInputChange('dateIdentified', e.target.value)} />
                   </div>
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="updatedBy">Actualizado/Confirmado por</Label>
-                    <Input id="updatedBy" placeholder="Nombre de quien actualizó o confirmó"
-                      value={formData.updatedBy} onChange={e => handleInputChange('updatedBy', e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="dateUpdated">Fecha de actualización/Confirmación</Label>
-                    <Input id="dateUpdated" type="date"
-                      value={formData.dateUpdated} onChange={e => handleInputChange('dateUpdated', e.target.value)} />
-                  </div>
-                </div>
                 <div className="space-y-2">
                   <Label htmlFor="project">Proyecto</Label>
                   <Input id="project"
@@ -876,12 +1578,20 @@ export default function NuevaPlantaPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="scientificName">Nombre científico *</Label>
-                    <Input id="scientificName" placeholder="Ej. Solanum abiaguense" required
-                      value={formData.scientificName} onChange={e => handleInputChange('scientificName', e.target.value)} />
+                    <div className="flex gap-2">
+                      <Input id="scientificName" placeholder="Ej. Solanum abiaguense" required
+                        value={formData.scientificName} onChange={e => handleInputChange('scientificName', e.target.value)} />
+                      <Button type="button" variant="outline" size="sm" onClick={fetchGbifTaxonomy}
+                        disabled={gbifLoading || !formData.scientificName.trim()}
+                        title="Consultar GBIF y rellenar familia, orden, clase, filo y autoría automáticamente">
+                        {gbifLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Escribe el nombre y presiona ✨ para autocompletar taxonomía desde GBIF</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="scientificNameAuthorship">Autoría del nombre científico</Label>
-                    <Input id="scientificNameAuthorship" placeholder="Ej. S. Knapp"
+                    <Input id="scientificNameAuthorship" placeholder="Se rellena automáticamente con GBIF"
                       value={formData.scientificNameAuthorship} onChange={e => handleInputChange('scientificNameAuthorship', e.target.value)} />
                   </div>
                 </div>
@@ -909,13 +1619,24 @@ export default function NuevaPlantaPage() {
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="order">Orden</Label>
-                    <Input id="order" placeholder="Ej. Solanales"
+                    <Input id="order" placeholder="Se rellena con GBIF ✨"
                       value={formData.orderName} onChange={e => handleInputChange('orderName', e.target.value)} />
                   </div>
-                  <div className="space-y-2">
+                  {/* Familia con autocompletado */}
+                  <div className="space-y-2 relative">
                     <Label htmlFor="family">Familia *</Label>
-                    <Input id="family" placeholder="Ej. Solanaceae" required
-                      value={formData.family} onChange={e => handleInputChange('family', e.target.value)} />
+                    <Input id="family" placeholder="Ej. Solanaceae" required autoComplete="off"
+                      value={formData.family}
+                      onChange={e => handleAutocomplete('family', e.target.value, 'family')}
+                      onBlur={() => setTimeout(() => setAcOpen(p => ({ ...p, family: false })), 150)} />
+                    {acOpen['family'] && acSuggestions['family']?.length > 0 && (
+                      <div className="absolute z-50 w-full rounded-md border bg-background shadow-lg top-[64px]">
+                        {acSuggestions['family'].map(s => (
+                          <button key={s.id} type="button" onMouseDown={() => pickSuggestion('family', s.value)}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted border-b last:border-0">{s.label}</button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="subfamily">Subfamilia</Label>
@@ -926,20 +1647,42 @@ export default function NuevaPlantaPage() {
 
                 {/* cols 44-46: genus, subgenus, specificEpithet */}
                 <div className="grid gap-4 sm:grid-cols-3">
-                  <div className="space-y-2">
+                  {/* Género con autocompletado */}
+                  <div className="space-y-2 relative">
                     <Label htmlFor="genus">Género *</Label>
-                    <Input id="genus" placeholder="Ej. Solanum" required
-                      value={formData.genus} onChange={e => handleInputChange('genus', e.target.value)} />
+                    <Input id="genus" placeholder="Ej. Solanum" required autoComplete="off"
+                      value={formData.genus}
+                      onChange={e => handleAutocomplete('genus', e.target.value, 'scientific')}
+                      onBlur={() => setTimeout(() => setAcOpen(p => ({ ...p, genus: false })), 150)} />
+                    {acOpen['genus'] && acSuggestions['genus']?.length > 0 && (
+                      <div className="absolute z-50 w-full rounded-md border bg-background shadow-lg top-[64px]">
+                        {acSuggestions['genus'].map(s => (
+                          <button key={s.id} type="button" onMouseDown={() => pickSuggestion('genus', s.value)}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted border-b last:border-0">{s.label}</button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="subgenus">Subgénero</Label>
                     <Input id="subgenus" placeholder="Subgénero (opcional)"
                       value={formData.subgenus} onChange={e => handleInputChange('subgenus', e.target.value)} />
                   </div>
-                  <div className="space-y-2">
+                  {/* Epíteto con autocompletado */}
+                  <div className="space-y-2 relative">
                     <Label htmlFor="specificEpithet">Epíteto específico *</Label>
-                    <Input id="specificEpithet" placeholder="Ej. abiaguense" required
-                      value={formData.specificEpithet} onChange={e => handleInputChange('specificEpithet', e.target.value)} />
+                    <Input id="specificEpithet" placeholder="Ej. abiaguense" required autoComplete="off"
+                      value={formData.specificEpithet}
+                      onChange={e => handleAutocomplete('specificEpithet', e.target.value, 'scientific')}
+                      onBlur={() => setTimeout(() => setAcOpen(p => ({ ...p, specificEpithet: false })), 150)} />
+                    {acOpen['specificEpithet'] && acSuggestions['specificEpithet']?.length > 0 && (
+                      <div className="absolute z-50 w-full rounded-md border bg-background shadow-lg top-[64px]">
+                        {acSuggestions['specificEpithet'].map(s => (
+                          <button key={s.id} type="button" onMouseDown={() => pickSuggestion('specificEpithet', s.value)}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted border-b last:border-0">{s.label}</button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 

@@ -1,487 +1,514 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
+import { apiService } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Search, Eye, CheckCircle, X, Clock, MessageSquare } from "lucide-react"
-import { apiService } from "@/lib/api"
-import { useToast } from "@/hooks/use-toast"
-import { useAuth } from "@/lib/auth-context"
+  MessageSquare, Search, ChevronLeft, ChevronRight, RefreshCw,
+  Clock, CheckCircle2, AlertCircle, XCircle, Eye, Send,
+  History, Loader2, ThumbsUp, ThumbsDown, Tag, User
+} from "lucide-react"
 
-// Tipos para las sugerencias
-interface Sugerencia {
-  id: number
-  plantaId?: string
-  plantaNombre?: string
-  nombre: string
-  apellido?: string
-  email: string
-  telefono?: string
-  correccion: string
-  argumento: string
-  fecha: string
-  estado: string
-  scientific_name?: string
-  title?: string
-  description?: string
-  contact_name?: string
-  contact_email?: string
-  submitted_at?: string
-  status?: string
+// ── Config ────────────────────────────────────────────────────────────────────
+
+type SugStatus = 'pending' | 'in_review' | 'approved' | 'rejected' | 'implemented'
+type SugType = 'feature' | 'bug' | 'improvement' | 'data_correction' | 'new_plant'
+
+const STATUS_CFG: Record<SugStatus, { label: string; color: string }> = {
+  pending:     { label: 'Nueva',       color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+  in_review:   { label: 'En revisión', color: 'bg-blue-100 text-blue-800 border-blue-200' },
+  approved:    { label: 'Aprobada',    color: 'bg-green-100 text-green-800 border-green-200' },
+  rejected:    { label: 'Rechazada',   color: 'bg-red-100 text-red-800 border-red-200' },
+  implemented: { label: 'Respondida',  color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
 }
 
-// No se necesitan datos de ejemplo, todos los datos vendrán de la API
+const TYPE_CFG: Record<SugType, string> = {
+  feature:          'Nueva función',
+  bug:              'Error',
+  improvement:      'Mejora',
+  data_correction:  'Corrección de datos',
+  new_plant:        'Nueva planta',
+}
 
-export default function SugerenciasPage() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedSugerencia, setSelectedSugerencia] = useState<Sugerencia | null>(null)
-  const [sugerencias, setSugerencias] = useState<Sugerencia[]>([])
+const PRIORITY_CFG: Record<string, { label: string; color: string }> = {
+  low:      { label: 'Baja',     color: 'bg-gray-100 text-gray-700 border-gray-200' },
+  medium:   { label: 'Media',    color: 'bg-blue-100 text-blue-700 border-blue-200' },
+  high:     { label: 'Alta',     color: 'bg-orange-100 text-orange-700 border-orange-200' },
+  critical: { label: 'Crítica',  color: 'bg-red-100 text-red-700 border-red-200' },
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_CFG[status as SugStatus]
+  const icons: Record<SugStatus, React.ReactNode> = {
+    pending:     <Clock className="h-3 w-3" />,
+    in_review:   <AlertCircle className="h-3 w-3" />,
+    approved:    <CheckCircle2 className="h-3 w-3" />,
+    rejected:    <XCircle className="h-3 w-3" />,
+    implemented: <CheckCircle2 className="h-3 w-3" />,
+  }
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${cfg?.color ?? 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+      {icons[status as SugStatus]}
+      {cfg?.label ?? status}
+    </span>
+  )
+}
+
+function TypeBadge({ type }: { type: string }) {
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground border">
+      {TYPE_CFG[type as SugType] ?? type}
+    </span>
+  )
+}
+
+// ── Página principal ──────────────────────────────────────────────────────────
+
+export default function SugerenciasAdminPage() {
+  const [items, setItems] = useState<any[]>([])
+  const [total, setTotal] = useState(0)
+  const [pages, setPages] = useState(1)
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 20,
-    total: 0,
-    totalPages: 0,
-    hasNext: false,
-    hasPrev: false
-  })
-  const [summary, setSummary] = useState({ total: 0, pending: 0, in_review: 0, approved: 0, rejected: 0, implemented: 0 })
-  const { toast } = useToast()
-  const { user, isAuthenticated } = useAuth()
+  const [error, setError] = useState<string | null>(null)
 
-  // Cargar sugerencias desde el API
-  useEffect(() => {
-    loadSuggestions()
-  }, [currentPage])
+  const [search, setSearch] = useState("")
+  const [filterStatus, setFilterStatus] = useState("all")
+  const [filterType, setFilterType] = useState("all")
 
-  const loadSuggestions = async () => {
+  const [stats, setStats] = useState({ total: 0, pending: 0, in_review: 0, approved: 0, rejected: 0, implemented: 0 })
+
+  const [selected, setSelected] = useState<any | null>(null)
+  const [adminResponse, setAdminResponse] = useState("")
+  const [sendingResp, setSendingResp] = useState(false)
+  const [statusChanging, setStatusChanging] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  const LIMIT = 15
+
+  const fetchData = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
-        if (!isAuthenticated) {
-        toast({
-          title: "Error de autenticación",
-          description: "Debes iniciar sesión para acceder a las sugerencias",
-          variant: "destructive"
-        })
-        setSugerencias([])
-        setLoading(false)
-        return
+      const params: any = { page, limit: LIMIT }
+      if (filterStatus !== "all") params.status = filterStatus
+      if (filterType !== "all") params.type = filterType
+
+      const res = await apiService.getSuggestions(params)
+      if (!res.success) { setError(res.error || "Error al cargar"); return }
+
+      const d = res.data!
+      let list: any[] = d.suggestions || []
+
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        list = list.filter(s =>
+          s.title?.toLowerCase().includes(q) ||
+          s.description?.toLowerCase().includes(q) ||
+          s.contact_name?.toLowerCase().includes(q) ||
+          s.contact_email?.toLowerCase().includes(q)
+        )
       }
 
-      const response = await apiService.getSuggestions({
-        page: currentPage,
-        limit: 20,
-        status: 'all'
+      setItems(list)
+      setTotal((d as any).pagination?.total ?? list.length)
+      setPages((d as any).pagination?.totalPages ?? 1)
+
+      const sm = (d as any).summary
+      if (sm) setStats({
+        total: sm.total,
+        pending: sm.pending,
+        in_review: sm.in_review,
+        approved: sm.approved,
+        rejected: sm.rejected,
+        implemented: sm.implemented,
       })
-
-      if (response.success && response.data) {
-        // Mapear los datos de la API al formato esperado por el componente
-        const mappedSugerencias = response.data.suggestions.map((sugerencia: any) => ({
-          id: sugerencia.id,
-          plantaId: sugerencia.plant_id?.toString(),
-          plantaNombre: sugerencia.scientific_name || (sugerencia.plant_id ? `Planta #${sugerencia.plant_id}` : "General"),
-          nombre: sugerencia.contact_name || sugerencia.name || "Anónimo",
-          apellido: "",
-          email: sugerencia.contact_email || sugerencia.email || "",
-          telefono: sugerencia.contact_phone || "",
-          correccion: sugerencia.title || "",
-          argumento: sugerencia.description || "",
-          fecha: sugerencia.submitted_at || new Date().toISOString(),
-          estado: mapApiStatus(sugerencia.status),
-          ...sugerencia
-        }))
-
-        setSugerencias(mappedSugerencias)
-
-        if ((response.data as any).summary) {
-          setSummary((response.data as any).summary)
-        }
-
-        // Configurar paginación
-        if (response.data.pagination) {
-          setPagination({
-            page: response.data.pagination.page,
-            limit: response.data.pagination.limit,
-            total: response.data.pagination.total,
-            totalPages: response.data.pagination.totalPages,
-            hasNext: response.data.pagination.hasNext,
-            hasPrev: response.data.pagination.hasPrev
-          })
-        }
-      } else {
-        setSugerencias([])
-        toast({
-          title: "Error al cargar sugerencias",
-          description: response.error || "No se pudieron cargar las sugerencias",
-          variant: "destructive"
-        })
-      }
-    } catch (error) {
-      setSugerencias([])
-      toast({
-        title: "Error de conexión",
-        description: error instanceof Error ? error.message : "No se pudo conectar con el servidor",
-        variant: "destructive"
-      })
+    } catch (e: any) {
+      setError(e.message)
     } finally {
       setLoading(false)
     }
+  }, [page, filterStatus, filterType, search])
+
+  useEffect(() => { fetchData() }, [fetchData])
+
+  const openDetail = (item: any) => {
+    setSelected(item)
+    setAdminResponse(item.admin_response || "")
+    setActionError(null)
   }
 
-  // Función para mapear estados de la API a los estados del componente
-  const mapApiStatus = (status?: string) => {
-    switch (status) {
-      case 'pending':     return 'nueva'
-      case 'in_review':   return 'revisada'
-      case 'approved':    return 'aprobada'
-      case 'rejected':    return 'rechazada'
-      case 'implemented': return 'implementada'
-      default: return status || 'nueva'
-    }
-  }
-
-  // Función para cambiar el estado de una sugerencia
-  const handleChangeStatus = async (id: number, status: string) => {
+  const handleStatusChange = async (newStatus: SugStatus) => {
+    if (!selected) return
+    setStatusChanging(true)
+    setActionError(null)
     try {
-      let response;
-      
-      switch (status) {
-        case 'aprobada':
-          response = await apiService.approveSuggestion(id)
-          break
-        case 'rechazada':
-          response = await apiService.rejectSuggestion(id)
-          break
-        case 'revisada':
-          response = await apiService.updateSuggestionStatus(id, 'in_review')
-          break
-        default:
-          response = await apiService.updateSuggestionStatus(id, status)
-      }
-
-      if (response.success) {
-        toast({
-          title: "Estado actualizado",
-          description: "El estado de la sugerencia ha sido actualizado correctamente"
-        })
-        
-        // Actualizar localmente
-        setSugerencias(prev => prev.map(s => 
-          s.id === id ? { ...s, estado: status } : s
-        ))
-        
-        if (selectedSugerencia?.id === id) {
-          setSelectedSugerencia(prev => prev ? {...prev, estado: status} : null)
-        }
+      const res = await apiService.updateSuggestionStatus(selected.id, newStatus)
+      if (res.success) {
+        const updated = { ...selected, status: newStatus }
+        setSelected(updated)
+        setItems(prev => prev.map(i => i.id === selected.id ? { ...i, status: newStatus } : i))
       } else {
-        toast({
-          title: "Error",
-          description: response.error || "No se pudo actualizar el estado",
-          variant: "destructive"
-        })
+        setActionError(res.error || "Error al actualizar estado")
       }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Ocurrió un error al actualizar el estado",
-        variant: "destructive"
-      })
+    } catch (e: any) {
+      setActionError(e.message)
+    } finally {
+      setStatusChanging(false) }
+  }
+
+  const handleResponder = async () => {
+    if (!selected || adminResponse.trim().length < 5) return
+    setSendingResp(true)
+    setActionError(null)
+    try {
+      const res = await apiService.respondToSuggestion(selected.id, adminResponse)
+      if (res.success) {
+        // Actualizar modal con datos completos del servidor (incluye responded_by_name)
+        setSelected((prev: any) => ({ ...prev, status: 'implemented', admin_response: adminResponse }))
+        // Recargar tabla para mostrar responded_by_name actualizado
+        await fetchData()
+        // Disparar evento para actualizar contador en sidebar
+        window.dispatchEvent(new Event('suggestionProcessed'))
+      } else {
+        setActionError(res.error || "Error al registrar respuesta")
+      }
+    } catch (e: any) {
+      setActionError(e.message)
+    } finally {
+      setSendingResp(false)
     }
   }
 
-  const filteredSugerencias = sugerencias.filter(
-    (sugerencia) =>
-      (sugerencia.plantaNombre?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-      (sugerencia.nombre?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-      (sugerencia.apellido?.toLowerCase() || "").includes(searchTerm.toLowerCase()),
-  )
-
-  const getEstadoBadge = (estado: string) => {
-    switch (estado) {
-      case "nueva":
-        return <Badge variant="destructive">Nueva</Badge>
-      case "revisada":
-        return <Badge variant="secondary">Revisada</Badge>
-      case "aprobada":
-        return (
-          <Badge variant="default" className="bg-green-600">
-            Aprobada
-          </Badge>
-        )
-      case "rechazada":
-        return <Badge variant="outline">Rechazada</Badge>
-      default:
-        return <Badge variant="secondary">{estado}</Badge>
-    }
-  }
-
-  const getEstadoIcon = (estado: string) => {
-    switch (estado) {
-      case "nueva":
-        return <Clock className="h-4 w-4 text-red-500" />
-      case "revisada":
-        return <Eye className="h-4 w-4 text-blue-500" />
-      case "aprobada":
-        return <CheckCircle className="h-4 w-4 text-green-500" />
-      case "rechazada":
-        return <X className="h-4 w-4 text-gray-500" />
-      default:
-        return <Clock className="h-4 w-4" />
-    }
-  }
-
-  const estadisticas = {
-    total:       summary.total || pagination.total,
-    nuevas:      summary.pending,
-    revisadas:   summary.in_review,
-    aprobadas:   summary.approved,
-    rechazadas:  summary.rejected,
-    implementadas: summary.implemented,
-  }
+  const fmtDate = (d: string | null) =>
+    d ? new Date(d).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' }) : '—'
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Gestión de Sugerencias</h1>
-        <p className="text-muted-foreground">Administra las sugerencias de corrección enviadas por los usuarios</p>
+    <div className="flex flex-col gap-6 p-6">
+      {/* Encabezado */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <MessageSquare className="h-6 w-6 text-primary" />
+            Sugerencias
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Gestión de sugerencias, errores y solicitudes de mejora
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          Actualizar
+        </Button>
       </div>
 
-      {/* Estadísticas */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total</CardTitle>
-            <MessageSquare className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{estadisticas.total}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Nuevas</CardTitle>
-            <Clock className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{estadisticas.nuevas}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Revisadas</CardTitle>
-            <Eye className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{estadisticas.revisadas}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Aprobadas</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{estadisticas.aprobadas}</div>
-          </CardContent>
-        </Card>
+      {/* Stats */}
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+        {([
+          { key: 'total',       label: 'Total',       color: 'text-foreground' },
+          { key: 'pending',     label: 'Nuevas',      color: 'text-yellow-600' },
+          { key: 'in_review',   label: 'En revisión', color: 'text-blue-600' },
+          { key: 'approved',    label: 'Aprobadas',   color: 'text-green-600' },
+          { key: 'rejected',    label: 'Rechazadas',  color: 'text-red-600' },
+          { key: 'implemented', label: 'Respondidas', color: 'text-emerald-600' },
+        ] as const).map(s => (
+          <Card key={s.key} className="border">
+            <CardContent className="p-3 text-center">
+              <div className={`text-xl font-bold ${s.color}`}>{stats[s.key]}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">{s.label}</div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Filtros */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            type="search"
-            placeholder="Buscar sugerencias..."
-            className="pl-8"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar por título, descripción o contacto…"
+            className="pl-9"
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1) }}
           />
         </div>
+        <Select value={filterStatus} onValueChange={v => { setFilterStatus(v); setPage(1) }}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los estados</SelectItem>
+            {Object.entries(STATUS_CFG).map(([k, v]) => (
+              <SelectItem key={k} value={k}>{v.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1) }}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Tipo" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los tipos</SelectItem>
+            {Object.entries(TYPE_CFG).map(([k, v]) => (
+              <SelectItem key={k} value={k}>{v}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* Tabla de sugerencias */}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Estado</TableHead>
-              <TableHead>Planta</TableHead>
-              <TableHead>Enviado por</TableHead>
-              <TableHead>Fecha</TableHead>
-              <TableHead>Corrección</TableHead>
-              <TableHead className="text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-10">
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
-                    <p className="text-sm text-muted-foreground">Cargando sugerencias...</p>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : filteredSugerencias.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-10">
-                  <p className="text-sm text-muted-foreground">No se encontraron sugerencias</p>
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredSugerencias.map((sugerencia) => (
-                <TableRow key={sugerencia.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {getEstadoIcon(sugerencia.estado)}
-                      {getEstadoBadge(sugerencia.estado)}
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-medium italic">{sugerencia.plantaNombre || "N/A"}</TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">
-                        {sugerencia.nombre} {sugerencia.apellido || ""}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{sugerencia.email}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell>{new Date(sugerencia.fecha).toLocaleDateString("es-ES")}</TableCell>
-                  <TableCell className="max-w-xs">
-                    <p className="truncate">{sugerencia.correccion}</p>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm" onClick={() => setSelectedSugerencia(sugerencia)}>
-                          <Eye className="h-4 w-4 mr-1" />
-                          Ver
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-2xl">
-                        <DialogHeader>
-                          <DialogTitle>Detalle de Sugerencia</DialogTitle>
-                          <DialogDescription>Sugerencia para {selectedSugerencia?.plantaNombre}</DialogDescription>
-                        </DialogHeader>
-                        {selectedSugerencia && (
-                          <div className="space-y-4">
-                            <div className="grid gap-4 md:grid-cols-2">
-                              <div>
-                                <h4 className="font-semibold mb-2">Información del remitente</h4>
-                                <div className="space-y-1 text-sm">
-                                  <p>
-                                    <strong>Nombre:</strong> {selectedSugerencia.nombre} {selectedSugerencia.apellido || ""}
-                                  </p>
-                                  <p>
-                                    <strong>Email:</strong> {selectedSugerencia.email}
-                                  </p>
-                                  {selectedSugerencia.telefono && (
-                                    <p>
-                                      <strong>Teléfono:</strong> {selectedSugerencia.telefono}
-                                    </p>
-                                  )}
-                                  <p>
-                                    <strong>Fecha:</strong> {new Date(selectedSugerencia.fecha).toLocaleString("es-ES")}
-                                  </p>
-                                </div>
-                              </div>
-                              <div>
-                                <h4 className="font-semibold mb-2">Estado actual</h4>
-                                <div className="flex items-center gap-2">
-                                  {getEstadoIcon(selectedSugerencia.estado)}
-                                  {getEstadoBadge(selectedSugerencia.estado)}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div>
-                              <h4 className="font-semibold mb-2">Corrección sugerida</h4>
-                              <p className="text-sm bg-muted p-3 rounded">{selectedSugerencia.correccion}</p>
-                            </div>
-
-                            <div>
-                              <h4 className="font-semibold mb-2">Argumento</h4>
-                              <p className="text-sm bg-muted p-3 rounded">{selectedSugerencia.argumento}</p>
-                            </div>
-
-                            <div className="flex gap-2 pt-4">
-                              <Button 
-                                size="sm" 
-                                className="bg-green-600 hover:bg-green-700"
-                                onClick={() => handleChangeStatus(selectedSugerencia.id, 'aprobada')}
-                                disabled={selectedSugerencia.estado === 'aprobada' || loading}
-                              >
-                                <CheckCircle className="h-4 w-4 mr-1" />
-                                Aprobar
-                              </Button>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => handleChangeStatus(selectedSugerencia.id, 'revisada')}
-                                disabled={selectedSugerencia.estado === 'revisada' || loading}
-                              >
-                                <Eye className="h-4 w-4 mr-1" />
-                                Marcar como revisada
-                              </Button>
-                              <Button 
-                                variant="destructive" 
-                                size="sm"
-                                onClick={() => handleChangeStatus(selectedSugerencia.id, 'rechazada')}
-                                disabled={selectedSugerencia.estado === 'rechazada' || loading}
-                              >
-                                <X className="h-4 w-4 mr-1" />
-                                Rechazar
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </DialogContent>
-                    </Dialog>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+      {/* Tabla */}
+      <div className="rounded-lg border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/50 border-b">
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Título</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden sm:table-cell">Tipo</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden md:table-cell">Contacto</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden lg:table-cell">Fecha</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Estado</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden xl:table-cell">Respondido por</th>
+                <th className="px-4 py-3 w-12"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-12 text-muted-foreground">
+                    <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
+                    Cargando…
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-12 text-destructive">{error}</td>
+                </tr>
+              ) : items.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-12 text-muted-foreground">
+                    No hay sugerencias para mostrar
+                  </td>
+                </tr>
+              ) : items.map(item => (
+                <tr key={item.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="font-medium line-clamp-1">{item.title}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1 hidden sm:block">{item.description}</div>
+                  </td>
+                  <td className="px-4 py-3 hidden sm:table-cell"><TypeBadge type={item.suggestion_type} /></td>
+                  <td className="px-4 py-3 hidden md:table-cell text-sm">
+                    {item.contact_name
+                      ? <div>
+                          <div className="font-medium">{item.contact_name}</div>
+                          <div className="text-xs text-muted-foreground">{item.contact_email || ''}</div>
+                        </div>
+                      : <span className="text-xs text-muted-foreground italic">Anónimo</span>
+                    }
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground hidden lg:table-cell">
+                    {fmtDate(item.submitted_at)}
+                  </td>
+                  <td className="px-4 py-3"><StatusBadge status={item.status} /></td>
+                  <td className="px-4 py-3 hidden xl:table-cell">
+                    {item.responded_by_name
+                      ? <div>
+                          <div className="text-xs font-medium">{item.responded_by_name}</div>
+                          <div className="text-xs text-muted-foreground">{item.responded_at ? fmtDate(item.responded_at) : ''}</div>
+                        </div>
+                      : <span className="text-xs text-muted-foreground">—</span>
+                    }
+                  </td>
+                  <td className="px-4 py-3">
+                    <Button variant="ghost" size="icon" onClick={() => openDetail(item)}>
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-      
+
       {/* Paginación */}
-      {!loading && filteredSugerencias.length > 0 && (
-        <div className="flex items-center justify-end space-x-2 py-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentPage((old) => Math.max(old - 1, 1))}
-            disabled={currentPage === 1 || loading}
-          >
-            Anterior
-          </Button>
-          <div className="text-sm">
-            Página {pagination.page} de {pagination.totalPages || 1}
+      {pages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">{items.length} de {total} sugerencias</p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm">Página {page} / {pages}</span>
+            <Button variant="outline" size="icon" disabled={page >= pages} onClick={() => setPage(p => p + 1)}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentPage((old) => old + 1)}
-            disabled={!pagination.hasNext || loading}
-          >
-            Siguiente
-          </Button>
         </div>
       )}
+
+      {/* Modal detalle */}
+      <Dialog open={!!selected} onOpenChange={open => { if (!open) setSelected(null) }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          {selected && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 flex-wrap">
+                  <MessageSquare className="h-5 w-5 text-primary shrink-0" />
+                  <span className="font-medium">{selected.title}</span>
+                  <TypeBadge type={selected.suggestion_type} />
+                  <StatusBadge status={selected.status} />
+                </DialogTitle>
+              </DialogHeader>
+
+              <div className="space-y-4">
+
+                {/* Info del solicitante */}
+                {selected.contact_name && (
+                  <Card>
+                    <CardHeader className="py-3 px-4">
+                      <CardTitle className="text-sm flex items-center gap-2 text-muted-foreground font-medium">
+                        <User className="h-4 w-4" /> Contacto
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4 grid grid-cols-2 gap-2 text-sm">
+                      <div><span className="text-xs text-muted-foreground block">Nombre</span><strong>{selected.contact_name}</strong></div>
+                      {selected.contact_email && <div><span className="text-xs text-muted-foreground block">Correo</span>{selected.contact_email}</div>}
+                      {selected.contact_phone && <div><span className="text-xs text-muted-foreground block">Teléfono</span>{selected.contact_phone}</div>}
+                      <div><span className="text-xs text-muted-foreground block">Enviado</span><span className="text-xs">{fmtDate(selected.submitted_at)}</span></div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Descripción */}
+                <Card>
+                  <CardHeader className="py-3 px-4">
+                    <CardTitle className="text-sm flex items-center justify-between text-muted-foreground font-medium">
+                      <span className="flex items-center gap-2"><Tag className="h-4 w-4" /> Descripción</span>
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className="flex items-center gap-1 text-green-600">
+                          <ThumbsUp className="h-3 w-3" />{selected.votes_up}
+                        </span>
+                        <span className="flex items-center gap-1 text-red-500">
+                          <ThumbsDown className="h-3 w-3" />{selected.votes_down}
+                        </span>
+                      </div>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4 text-sm leading-relaxed whitespace-pre-wrap">
+                    {selected.description}
+                  </CardContent>
+                </Card>
+
+                {/* Respuesta institucional */}
+                {selected.admin_response && (
+                  <Card className="border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20 dark:border-emerald-900">
+                    <CardHeader className="py-3 px-4">
+                      <CardTitle className="text-sm flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                        <CheckCircle2 className="h-4 w-4" /> Respuesta institucional
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4 space-y-2">
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{selected.admin_response}</p>
+                      {selected.responded_by_name && (
+                        <p className="text-xs text-muted-foreground">
+                          Respondido por <strong>{selected.responded_by_name}</strong> el {fmtDate(selected.responded_at)}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Error de acción */}
+                {actionError && (
+                  <p className="text-sm text-destructive bg-destructive/10 rounded p-2">{actionError}</p>
+                )}
+
+                {/* Cambiar estado */}
+                {selected.status !== 'implemented' && selected.status !== 'rejected' && (
+                  <div className="flex flex-wrap gap-2">
+                    {selected.status === 'pending' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={statusChanging}
+                        onClick={() => handleStatusChange('in_review')}
+                      >
+                        {statusChanging ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <AlertCircle className="h-4 w-4 mr-2 text-blue-500" />}
+                        Poner en revisión
+                      </Button>
+                    )}
+                    {(selected.status === 'pending' || selected.status === 'in_review') && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={statusChanging}
+                        onClick={() => handleStatusChange('approved')}
+                      >
+                        {statusChanging ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />}
+                        Aprobar
+                      </Button>
+                    )}
+                    {selected.status !== 'rejected' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={statusChanging}
+                        onClick={() => handleStatusChange('rejected')}
+                      >
+                        {statusChanging ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <XCircle className="h-4 w-4 mr-2 text-red-500" />}
+                        Rechazar
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {/* Formulario de respuesta */}
+                {selected.status !== 'implemented' && selected.status !== 'rejected' && (
+                  <Card>
+                    <CardHeader className="py-3 px-4">
+                      <CardTitle className="text-sm flex items-center gap-2 text-muted-foreground font-medium">
+                        <Send className="h-4 w-4" /> Respuesta oficial
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4 space-y-3">
+                      <Textarea
+                        placeholder="Redacte la respuesta oficial para esta sugerencia…"
+                        rows={4}
+                        value={adminResponse}
+                        onChange={e => setAdminResponse(e.target.value)}
+                        className="resize-none text-sm"
+                      />
+                      <Button
+                        className="w-full"
+                        disabled={sendingResp || adminResponse.trim().length < 5}
+                        onClick={handleResponder}
+                      >
+                        {sendingResp
+                          ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Guardando…</>
+                          : <><CheckCircle2 className="h-4 w-4 mr-2" />Registrar respuesta y marcar como Respondida</>
+                        }
+                      </Button>
+                      {adminResponse.trim().length > 0 && adminResponse.trim().length < 5 && (
+                        <p className="text-xs text-destructive">La respuesta debe tener al menos 5 caracteres.</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+              </div>
+
+              <DialogFooter className="mt-2">
+                <Button variant="outline" onClick={() => setSelected(null)}>Cerrar</Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

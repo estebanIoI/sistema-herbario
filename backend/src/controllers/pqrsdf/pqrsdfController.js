@@ -112,21 +112,121 @@ const getAll = async (data, user) => {
   const conditions = [];
   const params = [];
 
-  if (tipo)   { conditions.push('tipo = ?');   params.push(tipo); }
-  if (status) { conditions.push('status = ?'); params.push(status); }
+  if (tipo)   { conditions.push('p.tipo = ?');   params.push(tipo); }
+  if (status) { conditions.push('p.status = ?'); params.push(status); }
 
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const whereP = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  // Para COUNT usamos condiciones sin prefijo de tabla
+  const whereCount = conditions.length
+    ? `WHERE ${conditions.map(c => c.replace(/^p\./, '')).join(' AND ')}`
+    : '';
 
-  const [rows] = await db.query(
-    `SELECT * FROM pqrsdf ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-    [...params, Number(limit), Number(offset)]
-  );
+  let rows;
+  try {
+    [rows] = await db.query(
+      `SELECT p.*, u.name AS responded_by_name, u.email AS responded_by_email
+       FROM pqrsdf p
+       LEFT JOIN users u ON u.id = p.responded_by
+       ${whereP} ORDER BY p.created_at DESC LIMIT ? OFFSET ?`,
+      [...params, Number(limit), Number(offset)]
+    );
+  } catch (e) {
+    if (e.code === 'ER_BAD_FIELD_ERROR') {
+      [rows] = await db.query(
+        `SELECT * FROM pqrsdf ${whereCount} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+        [...params, Number(limit), Number(offset)]
+      );
+    } else { throw e; }
+  }
+
   const [[{ total }]] = await db.query(
-    `SELECT COUNT(*) as total FROM pqrsdf ${where}`,
+    `SELECT COUNT(*) as total FROM pqrsdf ${whereCount}`,
     params
   );
 
   return { pqrsdf: rows, total, page, pages: Math.ceil(total / limit) };
 };
 
-module.exports = { create, getAll };
+// pqrsdf.updateStatus — solo admin
+const updateStatus = async (data, user) => {
+  if (!user || user.role !== 'admin') throw new Error('Permisos insuficientes');
+  const { id, status } = data || {};
+  const VALID = ['pendiente', 'en_revision', 'respondido'];
+  if (!id) throw new Error('ID requerido');
+  if (!VALID.includes(status)) throw new Error(`Estado inválido. Valores permitidos: ${VALID.join(', ')}`);
+  await db.query('UPDATE pqrsdf SET status = ?, updated_at = NOW() WHERE id = ?', [status, id]);
+
+  try {
+    await db.query(
+      `INSERT INTO activity_logs (action, entity_type, entity_id, user_id, description) VALUES (?, 'pqrsdf', ?, ?, ?)`,
+      ['pqrsdf_status_changed', id, user.id, `PQRSDF #${id} → ${status} por ${user.email}`]
+    );
+  } catch { /* no interrumpir */ }
+
+  return { success: true, message: 'Estado actualizado' };
+};
+
+// pqrsdf.respond — solo admin, guarda respuesta oficial y cambia estado a respondido
+const respond = async (data, user) => {
+  if (!user || user.role !== 'admin') throw new Error('Permisos insuficientes');
+  const { id, respuesta } = data || {};
+  if (!id) throw new Error('ID requerido');
+  if (!respuesta || respuesta.trim().length < 5) throw new Error('La respuesta debe tener al menos 5 caracteres');
+
+  const [existing] = await db.query('SELECT id, status FROM pqrsdf WHERE id = ?', [id]);
+  if (!existing.length) throw new Error('Solicitud no encontrada');
+
+  try {
+    await db.query(
+      `UPDATE pqrsdf
+       SET respuesta = ?, responded_by = ?, responded_at = NOW(),
+           status = 'respondido', updated_at = NOW()
+       WHERE id = ?`,
+      [respuesta.trim(), user.id, id]
+    );
+  } catch (e) {
+    if (e.code === 'ER_BAD_FIELD_ERROR') {
+      throw new Error('Migración pendiente: ejecuta "node migrate.js" en la carpeta backend y reinicia el servidor.');
+    }
+    throw e;
+  }
+
+  try {
+    await db.query(
+      `INSERT INTO activity_logs (action, entity_type, entity_id, user_id, description) VALUES (?, 'pqrsdf', ?, ?, ?)`,
+      ['pqrsdf_responded', id, user.id, `PQRSDF #${id} respondido por ${user.email}`]
+    );
+  } catch { /* no interrumpir */ }
+
+  logger.info(`PQRSDF #${id} respondido por ${user.email}`);
+  return { success: true, message: 'Respuesta registrada correctamente' };
+};
+
+// pqrsdf.getById — solo admin
+const getById = async (data, user) => {
+  if (!user || user.role !== 'admin') throw new Error('Permisos insuficientes');
+  const { id } = data || {};
+  if (!id) throw new Error('ID requerido');
+
+  const [rows] = await db.query(
+    `SELECT p.*, u.name AS responded_by_name, u.email AS responded_by_email
+     FROM pqrsdf p
+     LEFT JOIN users u ON u.id = p.responded_by
+     WHERE p.id = ?`,
+    [id]
+  );
+  if (!rows.length) throw new Error('Solicitud no encontrada');
+
+  const [logs] = await db.query(
+    `SELECT al.action, al.description, al.created_at, u.name AS user_name
+     FROM activity_logs al
+     LEFT JOIN users u ON u.id = al.user_id
+     WHERE al.entity_type = 'pqrsdf' AND al.entity_id = ?
+     ORDER BY al.created_at ASC`,
+    [id]
+  );
+
+  return { pqrsdf: rows[0], history: logs };
+};
+
+module.exports = { create, getAll, updateStatus, respond, getById };

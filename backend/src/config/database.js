@@ -18,8 +18,13 @@ const dbConfig = {
   // Configuraciones de charset para soporte completo de UTF-8
   charset: 'utf8mb4',
   
-  // Timezone
-  timezone: '+00:00'
+  // Timezone Colombia/Bogotá (UTC-5)
+  // Afecta la serialización JS Date ↔ string MySQL (no cambia NOW() del servidor)
+  timezone: '-05:00',
+
+  // Retornar DATE/DATETIME como strings 'YYYY-MM-DD' / 'YYYY-MM-DD HH:mm:ss'
+  // en lugar de objetos Date (evita off-by-one por conversión de zona horaria)
+  dateStrings: ['DATE', 'DATETIME']
 };
 
 // Crear pool de conexiones
@@ -109,6 +114,10 @@ const closePool = async () => {
 // Event listeners para el pool
 pool.on('connection', (connection) => {
   logger.debug(`🔗 Nueva conexión establecida: ${connection.threadId}`);
+  // Establecer zona horaria de sesión → NOW() retorna hora de Colombia/Bogotá
+  connection.query("SET time_zone = '-05:00'", (err) => {
+    if (err) logger.error('Error al establecer time_zone de sesión:', err.message);
+  });
 });
 
 pool.on('error', (error) => {

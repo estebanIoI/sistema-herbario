@@ -10,233 +10,613 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Save, Loader2, AlertCircle, Upload, X, ImagePlus } from "lucide-react"
+import { ArrowLeft, Upload, Plus, X, Save, Loader2, CheckCircle2, MapPin, Sparkles, ChevronDown, LayoutTemplate, Pencil, Trash2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { apiService } from "@/lib/api"
-import { CloudinaryImage } from "@/components/cloudinary-image"
 
-// Tipos para las imágenes
-interface PlantImage {
-  id?: number;
-  file?: File;
-  url: string;
-  serverUrl?: string;
-  thumbnailUrl?: string;
-  originalName: string;
-  isUploading?: boolean;
-  uploadFailed?: boolean;
-  isExisting?: boolean; // Para marcar imágenes que ya existen en el servidor
-  markedForDeletion?: boolean; // Para marcar imágenes existentes para eliminar
+// ── Tipos helpers ────────────────────────────────────────────────────────────
+type AutocompleteItem = { id: number; value: string; type: string; label: string }
+type TipoPlantilla = 'institucion' | 'ubicacion'
+type Plantilla = {
+  id: string
+  nombre: string
+  tipo: TipoPlantilla
+  campos: Record<string, string>
 }
 
+// Tipos para imágenes
+interface PlantImage {
+  id?: number
+  file?: File
+  url: string
+  serverUrl?: string
+  thumbnailUrl?: string
+  originalName: string
+  isUploading?: boolean
+  uploadFailed?: boolean
+  isExisting?: boolean
+  markedForDeletion?: boolean
+}
+
+// ── Plantillas ────────────────────────────────────────────────────────────────
+const PLANTILLAS_DEFAULT: Plantilla[] = [
+  {
+    id: 'default-inst-mocoa',
+    nombre: 'UNIP - Mocoa',
+    tipo: 'institucion',
+    campos: {
+      institutionCode: 'Institución Universitaria del Putumayo (UNIP)',
+      institutionID: '800247940',
+      collectionCode: 'HEAA',
+      collectionID: '',
+      basisOfRecord: 'preservedSpecimen',
+      type: 'physicalObject',
+    },
+  },
+  {
+    id: 'default-inst-sibundoy',
+    nombre: 'UNIP - Sibundoy',
+    tipo: 'institucion',
+    campos: {
+      institutionCode: 'Institución Universitaria del Putumayo (UNIP)',
+      institutionID: '800247940',
+      collectionCode: 'HEAA',
+      collectionID: '',
+      basisOfRecord: 'preservedSpecimen',
+      type: 'physicalObject',
+    },
+  },
+  {
+    id: 'default-ubic-mocoa',
+    nombre: 'Putumayo - Mocoa',
+    tipo: 'ubicacion',
+    campos: { country: 'Colombia', stateProvince: 'Putumayo', county: 'Mocoa' },
+  },
+  {
+    id: 'default-ubic-sibundoy',
+    nombre: 'Putumayo - Sibundoy',
+    tipo: 'ubicacion',
+    campos: { country: 'Colombia', stateProvince: 'Putumayo', county: 'Sibundoy' },
+  },
+]
+
+const LS_KEY = 'heaa_plantillas_v1'
+const loadPlantillas = (): Plantilla[] => {
+  try {
+    const raw = localStorage.getItem(LS_KEY)
+    return raw ? JSON.parse(raw) : PLANTILLAS_DEFAULT
+  } catch { return PLANTILLAS_DEFAULT }
+}
+const savePlantillas = (list: Plantilla[]) => {
+  localStorage.setItem(LS_KEY, JSON.stringify(list))
+}
+
+// ── PlantillaDropdown ─────────────────────────────────────────────────────────
+function PlantillaDropdown({
+  tipo, plantillas: list, open, onToggle, onApply, onNew, onEdit, onDelete
+}: {
+  tipo: TipoPlantilla
+  plantillas: Plantilla[]
+  open: boolean
+  onToggle: () => void
+  onApply: (p: Plantilla) => void
+  onNew: () => void
+  onEdit: (p: Plantilla) => void
+  onDelete: (id: string) => void
+}) {
+  const items = list.filter(p => p.tipo === tipo)
+  return (
+    <div className="relative">
+      <Button type="button" variant="outline" size="sm" onClick={onToggle}>
+        <LayoutTemplate className="mr-2 h-4 w-4" />Plantillas<ChevronDown className="ml-1 h-3 w-3" />
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-9 z-50 w-64 rounded-md border bg-background shadow-lg">
+          <div className="flex items-center justify-between px-3 pt-2 pb-1 border-b">
+            <span className="text-xs font-medium text-muted-foreground">Plantillas guardadas</span>
+            <button type="button" onClick={onNew}
+              className="flex items-center gap-1 text-xs text-primary hover:underline">
+              <Plus className="h-3 w-3" />Nueva
+            </button>
+          </div>
+          {items.length === 0 && (
+            <p className="px-3 py-3 text-xs text-muted-foreground text-center">Sin plantillas. Crea una con "+ Nueva".</p>
+          )}
+          {items.map(p => (
+            <div key={p.id} className="flex items-center gap-1 px-2 py-1.5 hover:bg-muted group">
+              <button type="button" className="flex-1 text-left text-sm px-1 truncate" onClick={() => onApply(p)}>
+                {p.nombre}
+              </button>
+              <button type="button" onClick={() => onEdit(p)} title="Editar"
+                className="opacity-0 group-hover:opacity-100 p-1 hover:text-primary transition-opacity">
+                <Pencil className="h-3 w-3" />
+              </button>
+              <button type="button" onClick={() => onDelete(p.id)} title="Eliminar"
+                className="opacity-0 group-hover:opacity-100 p-1 hover:text-destructive transition-opacity">
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── PlantillaModal ────────────────────────────────────────────────────────────
+function PlantillaModal({
+  plantillaModal, plantillaForm, setPlantillaForm, setPlantillaModal, onSave,
+  camposInstitucion, camposUbicacion,
+}: {
+  plantillaModal: { tipo: TipoPlantilla; editing: Plantilla | null } | null
+  plantillaForm: { nombre: string; campos: Record<string, string> }
+  setPlantillaForm: React.Dispatch<React.SetStateAction<{ nombre: string; campos: Record<string, string> }>>
+  setPlantillaModal: (v: null) => void
+  onSave: () => void
+  camposInstitucion: { key: string; label: string; placeholder: string }[]
+  camposUbicacion:   { key: string; label: string; placeholder: string }[]
+}) {
+  if (!plantillaModal) return null
+  const campos = plantillaModal.tipo === 'institucion' ? camposInstitucion : camposUbicacion
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-md rounded-lg border bg-background p-6 shadow-xl">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">
+            {plantillaModal.editing ? 'Editar plantilla' : 'Nueva plantilla'}
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              ({plantillaModal.tipo === 'institucion' ? 'Institución' : 'Ubicación'})
+            </span>
+          </h2>
+          <Button type="button" variant="ghost" size="icon" onClick={() => setPlantillaModal(null)}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+          <div className="space-y-1">
+            <Label className="text-xs font-medium">Nombre de la plantilla *</Label>
+            <Input
+              placeholder="Ej. UNIP - Mocoa"
+              value={plantillaForm.nombre}
+              onChange={e => setPlantillaForm(p => ({ ...p, nombre: e.target.value }))}
+            />
+          </div>
+          {campos.map(c => (
+            <div key={c.key} className="space-y-1">
+              <Label className="text-xs font-medium">{c.label}</Label>
+              <Input
+                placeholder={c.placeholder}
+                value={plantillaForm.campos[c.key] || ''}
+                onChange={e => setPlantillaForm(p => ({ ...p, campos: { ...p.campos, [c.key]: e.target.value } }))}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
+          <Button type="button" variant="outline" onClick={() => setPlantillaModal(null)}>Cancelar</Button>
+          <Button type="button" onClick={onSave} disabled={!plantillaForm.nombre.trim()}>
+            <Save className="mr-2 h-4 w-4" />{plantillaModal.editing ? 'Guardar cambios' : 'Crear plantilla'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Componente principal ──────────────────────────────────────────────────────
 export default function EditarPlantaPage() {
   const router = useRouter()
   const params = useParams()
   const { toast } = useToast()
+  const plantId = Number(params.id)
+
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingData, setIsLoadingData] = useState(true)
-  const [plantId] = useState(Number(params.id))
-
-  // Estado para manejo de imágenes
+  const [currentTab, setCurrentTab] = useState("registro")
   const [uploadedImages, setUploadedImages] = useState<PlantImage[]>([])
   const [isDragOver, setIsDragOver] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [currentStatus, setCurrentStatus] = useState('draft')
 
-  // Cleanup para URLs de objetos blob al desmontar
-  useEffect(() => {
-    return () => {
-      uploadedImages.forEach(image => {
-        if (image.file && image.url.startsWith('blob:')) {
-          URL.revokeObjectURL(image.url)
+  // ── Features de asistencia ────────────────────────────────────────────────
+  const [gbifLoading, setGbifLoading] = useState(false)
+  const [gpsLoading, setGpsLoading] = useState(false)
+
+  // ── Plantillas ────────────────────────────────────────────────────────────
+  const [plantillas, setPlantillas] = useState<Plantilla[]>([])
+  const [plantillaMenu, setPlantillaMenu] = useState<TipoPlantilla | null>(null)
+  const [plantillaModal, setPlantillaModal] = useState<{ tipo: TipoPlantilla; editing: Plantilla | null } | null>(null)
+  const [plantillaForm, setPlantillaForm] = useState<{ nombre: string; campos: Record<string, string> }>({ nombre: '', campos: {} })
+
+  useEffect(() => { setPlantillas(loadPlantillas()) }, [])
+
+  const CAMPOS_INSTITUCION = [
+    { key: 'institutionCode', label: 'Nombre de la institución', placeholder: 'Institución Universitaria del Putumayo (UNIP)' },
+    { key: 'institutionID',   label: 'NIT / ID institución',     placeholder: '800247940' },
+    { key: 'collectionCode',  label: 'Código de la colección',   placeholder: 'HEAA' },
+    { key: 'collectionID',    label: 'ID colección (GRSciColl)', placeholder: 'Opcional' },
+  ]
+  const CAMPOS_UBICACION = [
+    { key: 'country',       label: 'País',         placeholder: 'Colombia' },
+    { key: 'stateProvince', label: 'Departamento', placeholder: 'Putumayo' },
+    { key: 'county',        label: 'Municipio',    placeholder: 'Mocoa' },
+  ]
+
+  const openNewPlantilla = (tipo: TipoPlantilla) => {
+    const camposDefault: Record<string, string> = {}
+    const lista = tipo === 'institucion' ? CAMPOS_INSTITUCION : CAMPOS_UBICACION
+    lista.forEach(c => { camposDefault[c.key] = '' })
+    setPlantillaForm({ nombre: '', campos: camposDefault })
+    setPlantillaModal({ tipo, editing: null })
+    setPlantillaMenu(null)
+  }
+  const openEditPlantilla = (p: Plantilla) => {
+    setPlantillaForm({ nombre: p.nombre, campos: { ...p.campos } })
+    setPlantillaModal({ tipo: p.tipo, editing: p })
+    setPlantillaMenu(null)
+  }
+  const savePlantillaForm = () => {
+    if (!plantillaModal || !plantillaForm.nombre.trim()) return
+    const updated = plantillaModal.editing
+      ? plantillas.map(p => p.id === plantillaModal.editing!.id
+          ? { ...p, nombre: plantillaForm.nombre, campos: plantillaForm.campos }
+          : p)
+      : [...plantillas, { id: crypto.randomUUID(), nombre: plantillaForm.nombre, tipo: plantillaModal.tipo, campos: plantillaForm.campos }]
+    setPlantillas(updated)
+    savePlantillas(updated)
+    setPlantillaModal(null)
+    toast({ title: plantillaModal.editing ? 'Plantilla actualizada' : 'Plantilla creada' })
+  }
+  const deletePlantilla = (id: string) => {
+    const updated = plantillas.filter(p => p.id !== id)
+    setPlantillas(updated)
+    savePlantillas(updated)
+    toast({ title: 'Plantilla eliminada' })
+  }
+  const applyPlantilla = (p: Plantilla) => {
+    setFormData(prev => ({ ...prev, ...p.campos }))
+    setPlantillaMenu(null)
+    toast({ title: `Plantilla "${p.nombre}" aplicada`, description: 'Revisa y ajusta los campos pre-llenados.' })
+  }
+
+  // ── Autocompletado ────────────────────────────────────────────────────────
+  const [acSuggestions, setAcSuggestions] = useState<Record<string, AutocompleteItem[]>>({})
+  const [acOpen, setAcOpen] = useState<Record<string, boolean>>({})
+  const acTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+
+  const handleAutocomplete = (field: string, value: string, acType: 'all' | 'scientific' | 'common' | 'family') => {
+    handleInputChange(field, value)
+    clearTimeout(acTimers.current[field])
+    if (value.length < 2) { setAcSuggestions(p => ({ ...p, [field]: [] })); return }
+    acTimers.current[field] = setTimeout(async () => {
+      try {
+        const res = await apiService.getAutocomplete(value, acType)
+        if (res.success && res.data) {
+          setAcSuggestions(p => ({ ...p, [field]: res.data! }))
+          setAcOpen(p => ({ ...p, [field]: true }))
         }
+      } catch {}
+    }, 300)
+  }
+  const pickSuggestion = (field: string, value: string) => {
+    handleInputChange(field, value)
+    setAcOpen(p => ({ ...p, [field]: false }))
+    setAcSuggestions(p => ({ ...p, [field]: [] }))
+  }
+
+  // ── GBIF ──────────────────────────────────────────────────────────────────
+  const fetchGbifTaxonomy = async () => {
+    const name = formData.scientificName.trim()
+    if (!name) return
+    setGbifLoading(true)
+    try {
+      const res = await fetch(`https://api.gbif.org/v1/species/match?name=${encodeURIComponent(name)}&kingdom=Plantae`, {
+        headers: { 'Accept': 'application/json' }
       })
+      if (!res.ok) throw new Error(`GBIF respondió ${res.status}`)
+      const data = await res.json()
+      if (data.matchType === 'NONE') {
+        toast({ title: 'No encontrado en GBIF', description: `"${name}" no arrojó resultados. Verifica el nombre.`, variant: 'destructive' })
+        return
+      }
+      const authorship = (data.scientificName && data.canonicalName)
+        ? data.scientificName.replace(data.canonicalName, '').trim()
+        : ''
+      const epithet = data.canonicalName?.split(' ')[1] || data.species?.split(' ')[1] || ''
+      const rank = data.rank?.toLowerCase() || ''
+      setFormData(prev => ({
+        ...prev,
+        family:                   data.family   || prev.family,
+        orderName:                data.order    || prev.orderName,
+        class:                    data.class    || prev.class,
+        phylum:                   data.phylum   || prev.phylum,
+        kingdom:                  data.kingdom  || prev.kingdom,
+        genus:                    data.genus    || prev.genus,
+        specificEpithet:          epithet       || prev.specificEpithet,
+        scientificNameAuthorship: authorship    || prev.scientificNameAuthorship,
+        taxonRank:                rank          || prev.taxonRank,
+      }))
+      toast({ title: '✅ Taxonomía completada desde GBIF', description: `Familia: ${data.family} · Confianza: ${data.confidence}%` })
+    } catch (err: any) {
+      toast({ title: 'Error al consultar GBIF', description: err.message || 'Verifica tu conexión a internet.', variant: 'destructive' })
+    } finally {
+      setGbifLoading(false)
     }
-  }, [])
-  
-  // Form state - nombres Darwin Core (DwC snake_case)
+  }
+
+  // ── GPS ───────────────────────────────────────────────────────────────────
+  const fetchGPS = () => {
+    if (!navigator.geolocation) {
+      toast({ title: 'GPS no disponible', description: 'Tu dispositivo no soporta geolocalización.', variant: 'destructive' })
+      return
+    }
+    setGpsLoading(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setFormData(prev => ({
+          ...prev,
+          decimalLatitude:  pos.coords.latitude.toFixed(6),
+          decimalLongitude: pos.coords.longitude.toFixed(6),
+        }))
+        toast({ title: '📍 Coordenadas obtenidas', description: `Lat: ${pos.coords.latitude.toFixed(6)} · Lon: ${pos.coords.longitude.toFixed(6)}` })
+        setGpsLoading(false)
+      },
+      () => {
+        toast({ title: 'No se pudo obtener ubicación', description: 'Permite el acceso a la ubicación en tu navegador.', variant: 'destructive' })
+        setGpsLoading(false)
+      }
+    )
+  }
+
+  // ── Estado del formulario (camelCase — igual que nueva/page.tsx) ───────────
   const [formData, setFormData] = useState({
-    // Taxonomía (cols 36-50)
-    scientific_name: '',
-    common_name: '',
-    vernacular_name: '',
-    family: '',
-    genus: '',
-    specific_epithet: '',           // Col 46 · specificEpithet
-    scientific_name_authorship: '', // Col 37 · scientificNameAuthorship
-    infraspecific_epithet: '',
-    taxonomic_status: 'accepted',
-    taxon_rank: 'species',
-    taxon_remarks: '',
+    // Cols 1-3: Registro básico
+    occurrenceID: '',
+    basisOfRecord: '',
+    type: '',
+    // Cols 4-7: Institución
+    institutionCode: 'Institución Universitaria del Putumayo (UNIP)',
+    institutionID: '800.247.940',
+    collectionCode: 'HEAA',
+    collectionID: '',
+    // Cols 8-10: Espécimen
+    catalogNumber: '',
+    recordNumber: '',
+    recordedBy: '',
+    // Cols 11-20: Colección
+    organismQuantity: '',
+    organismQuantityType: '',
+    lifeStage: '',
+    preparation: '',
+    disposition: '',
+    samplingProtocol: '',
+    eventDate: '',
+    habitat: '',
+    fieldNumber: '',
+    fieldNotes: '',
+    // Cols 21-31: Ubicación
+    country: 'Colombia',
+    stateProvince: '',
+    county: '',
+    municipality: '',
+    locality: '',
+    minimumElevationInMeters: '',
+    decimalLatitudeSexagesimal: '',
+    decimalLatitude: '',
+    decimalLongitudeSexagesimal: '',
+    decimalLongitude: '',
+    geodetic: 'WGS84',
+    // Cols 32-35: Determinación
+    identifiedBy: '',
+    dateIdentified: '',
+    updatedBy: '',
+    dateUpdated: '',
+    // Extra: Proyecto
+    project: '',
+    // Cols 36-50: Taxonomía
+    scientificName: '',
+    scientificNameAuthorship: '',
     kingdom: 'Plantae',
     phylum: 'Magnoliophyta',
-    class_name: 'Equisetopsida',
-    order_name: '',
+    class: 'Equisetopsida',
+    orderName: '',
+    family: '',
     subfamily: '',
+    genus: '',
     subgenus: '',
-    // Espécimen (cols 8-9)
-    catalog_number: '',   // Col 8 · catalogNumber
-    record_number: '',    // Col 9 · recordNumber
-    // Identificación (cols 32-35)
-    identified_by: '',
-    date_identified: '',
-    determined_by: '',
-    determination_date: '',
-    updated_by: '',
-    date_updated: '',
-    type_status: 'none',
-    // Colección (cols 10-20)
-    recorded_by: '',      // Col 10 · recordedBy
-    additional_collectors: '',
-    event_date: '',       // Col 17 · eventDate
-    organism_quantity: '',
-    organism_quantity_type: '',
-    life_stage: '',
-    preparations: '',     // Col 14 · preparations
-    disposition: '',
-    sampling_protocol: '',
-    field_number: '',
-    field_notes: '',
-    // Ubicación (cols 21-31)
-    country: 'Colombia',
-    state_province: '',   // Col 22 · stateProvince
-    county: '',           // Col 23 · county (municipio)
-    municipality: '',     // Col 24 · municipality (vereda)
-    locality: '',         // Col 25 · locality
-    decimal_latitude: '',             // Col 27
-    decimal_latitude_sexagesimal: '', // Col 28
-    decimal_longitude: '',            // Col 29
-    decimal_longitude_sexagesimal: '',// Col 30
-    minimum_elevation_in_meters: '',  // Col 26
-    coordinate_uncertainty: '',
-    georeferenced_by: '',
-    // Ecología
-    habitat: '',
-    substrate: '',
-    associated_species: '',
-    abundance: '',
-    reproductive_state: '',
-    // Morfología
-    plant_habit: '',  // (antes: habit)
-    height_min: '',
-    height_max: '',
+    specificEpithet: '',
+    infraspecificEpithet: '',
+    taxonRank: 'species',
+    vernacularName: '',
+    taxonRemarks: '',
+    // Características morfológicas
     description: '',
-    distinguishing_features: '',
-    flower_color: '',
-    fruit_color: '',
-    leaf_characteristics: '',
-    // Uso y conservación
+    plantHeight: '',
+    plantHabit: '',
+    flowerColor: '',
+    fruitColor: '',
+    leafCharacteristics: '',
     uses: '',
-    care_instructions: '',
-    conservation_status: 'NE',
-    // Sistema
-    status: 'draft',
-    featured: false,
-    observations: '',
-    notes: '',
-    // Proyecto
-    project: '',
-    photo_record: '',
+    additionalRemarks: '',
+    // Col 51: Imágenes
+    photoRecord: '',
   })
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }))
+    setFormData(prev => ({ ...prev, [field]: value }))
   }
 
-  // Funciones para manejo de imágenes
+  // ── Normalización de fechas ───────────────────────────────────────────────
+  const toDateStr = (v: any): string => {
+    if (!v) return ''
+    const s = String(v)
+    const dateOnly = s.includes('T') ? s.split('T')[0] : s
+    return /^\d{4}-\d{2}-\d{2}$/.test(dateOnly) ? dateOnly : ''
+  }
+
+  // ── Cargar datos de la planta ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!plantId) return
+
+    const loadPlantData = async () => {
+      setIsLoadingData(true)
+      try {
+        const response = await apiService.getPlantById(plantId)
+        if (response.success && response.data) {
+          const plant = response.data
+
+          setCurrentStatus(plant.status || 'draft')
+
+          // Mapear snake_case DB → camelCase formData (igual que nueva/page.tsx)
+          const toStr = (v: any) => (v != null ? String(v) : '')
+
+          setFormData({
+            occurrenceID:               toStr(plant.occurrence_id),
+            basisOfRecord:              toStr(plant.basis_of_record),
+            type:                       toStr(plant.record_type),
+            institutionCode:            toStr(plant.institution_code)  || 'Institución Universitaria del Putumayo (UNIP)',
+            institutionID:              toStr(plant.institution_id)    || '800.247.940',
+            collectionCode:             toStr(plant.collection_code)   || 'HEAA',
+            collectionID:               toStr(plant.collection_id),
+            catalogNumber:              toStr(plant.catalog_number),
+            recordNumber:               toStr(plant.record_number),
+            recordedBy:                 toStr(plant.recorded_by),
+            organismQuantity:           toStr(plant.organism_quantity),
+            organismQuantityType:       toStr(plant.organism_quantity_type),
+            lifeStage:                  toStr(plant.life_stage),
+            preparation:                toStr(plant.preparations),
+            disposition:                toStr(plant.disposition),
+            samplingProtocol:           toStr(plant.sampling_protocol),
+            eventDate:                  toDateStr(plant.event_date),
+            habitat:                    toStr(plant.habitat),
+            fieldNumber:                toStr(plant.field_number),
+            fieldNotes:                 toStr(plant.field_notes),
+            country:                    toStr(plant.country)           || 'Colombia',
+            stateProvince:              toStr(plant.state_province),
+            county:                     toStr(plant.county),
+            municipality:               toStr(plant.municipality),
+            locality:                   toStr(plant.locality),
+            minimumElevationInMeters:   plant.minimum_elevation_in_meters != null ? String(plant.minimum_elevation_in_meters) : '',
+            decimalLatitudeSexagesimal: toStr(plant.decimal_latitude_sexagesimal),
+            decimalLatitude:            plant.decimal_latitude  != null ? String(plant.decimal_latitude)  : '',
+            decimalLongitudeSexagesimal:toStr(plant.decimal_longitude_sexagesimal),
+            decimalLongitude:           plant.decimal_longitude != null ? String(plant.decimal_longitude) : '',
+            geodetic:                   toStr(plant.geodetic)          || 'WGS84',
+            identifiedBy:               toStr(plant.identified_by),
+            dateIdentified:             toDateStr(plant.date_identified),
+            updatedBy:                  toStr(plant.updated_by),
+            dateUpdated:                toDateStr(plant.date_updated),
+            project:                    toStr(plant.project),
+            scientificName:             toStr(plant.scientific_name),
+            scientificNameAuthorship:   toStr(plant.scientific_name_authorship),
+            kingdom:                    toStr(plant.kingdom)           || 'Plantae',
+            phylum:                     toStr(plant.phylum)            || 'Magnoliophyta',
+            class:                      toStr(plant.class_name)        || 'Equisetopsida',
+            orderName:                  toStr(plant.order_name),
+            family:                     toStr(plant.family),
+            subfamily:                  toStr(plant.subfamily),
+            genus:                      toStr(plant.genus),
+            subgenus:                   toStr(plant.subgenus),
+            specificEpithet:            toStr(plant.specific_epithet),
+            infraspecificEpithet:       toStr(plant.infraspecific_epithet),
+            taxonRank:                  toStr(plant.taxon_rank)        || 'species',
+            vernacularName:             toStr(plant.vernacular_name),
+            taxonRemarks:               toStr(plant.taxon_remarks),
+            description:                toStr(plant.description),
+            plantHeight:                plant.height_min != null ? String(plant.height_min) : '',
+            plantHabit:                 toStr(plant.plant_habit),
+            flowerColor:                toStr(plant.flower_color),
+            fruitColor:                 toStr(plant.fruit_color),
+            leafCharacteristics:        toStr(plant.leaf_characteristics),
+            uses:                       toStr(plant.uses),
+            additionalRemarks:          toStr(plant.observations),
+            photoRecord:                toStr(plant.photo_record),
+          })
+
+          // Cargar imágenes existentes
+          if (plant.images && plant.images.length > 0) {
+            const existingImages: PlantImage[] = plant.images.map((img: any) => ({
+              id: img.id,
+              url: img.thumbnailUrl || img.url,
+              serverUrl: img.url,
+              thumbnailUrl: img.thumbnailUrl,
+              originalName: img.caption || `Imagen ${img.id}`,
+              isExisting: true,
+              markedForDeletion: false,
+            }))
+            setUploadedImages(existingImages)
+          }
+        } else {
+          toast({ title: 'Error', description: 'No se pudo cargar la planta', variant: 'destructive' })
+          router.push('/admin/plantas')
+        }
+      } catch (error: any) {
+        toast({ title: 'Error al cargar planta', description: error.message, variant: 'destructive' })
+        router.push('/admin/plantas')
+      } finally {
+        setIsLoadingData(false)
+      }
+    }
+
+    loadPlantData()
+  }, [plantId])
+
+  // Cleanup URLs blob al desmontar
+  useEffect(() => {
+    return () => {
+      uploadedImages.forEach(image => {
+        if (image.file && image.url.startsWith('blob:')) URL.revokeObjectURL(image.url)
+      })
+    }
+  }, [])
+
+  // ── Manejo de imágenes ────────────────────────────────────────────────────
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
-    if (files) {
-      handleFiles(Array.from(files))
-    }
-    // Resetear el input para permitir seleccionar el mismo archivo de nuevo
-    if (event.target) {
-      event.target.value = ''
-    }
+    if (files) handleFiles(Array.from(files))
+    if (event.target) event.target.value = ''
   }
 
   const handleFiles = async (files: File[]) => {
     const validFiles = files.filter(file => {
       const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
-      const maxSize = 10 * 1024 * 1024 // 10MB
-
+      const maxSize = 10 * 1024 * 1024
       if (!validTypes.includes(file.type)) {
-        toast({
-          title: "Tipo de archivo no válido",
-          description: `${file.name} no es un tipo de imagen válido`,
-          variant: "destructive"
-        })
+        toast({ title: "Tipo de archivo no válido", description: `${file.name} no es una imagen válida`, variant: "destructive" })
         return false
       }
-
       if (file.size > maxSize) {
-        toast({
-          title: "Archivo muy grande",
-          description: `${file.name} es muy grande. Máximo 10MB`,
-          variant: "destructive"
-        })
+        toast({ title: "Archivo muy grande", description: `${file.name} supera los 10MB`, variant: "destructive" })
         return false
       }
-
       return true
     })
-
     if (validFiles.length === 0) return
 
-    // Agregar imágenes con preview local inmediato
     const newImages: PlantImage[] = validFiles.map(file => ({
       file,
       url: URL.createObjectURL(file),
       originalName: file.name,
       isUploading: false,
-      isExisting: false
+      isExisting: false,
     }))
-
     setUploadedImages(prev => [...prev, ...newImages])
 
-    // Subir cada archivo al servidor
     for (const file of validFiles) {
-      setUploadedImages(prev => prev.map(img =>
-        img.file === file ? { ...img, isUploading: true } : img
-      ))
-
+      setUploadedImages(prev => prev.map(img => img.file === file ? { ...img, isUploading: true } : img))
       try {
-        const response = await apiService.uploadImage(file, {
-          entityType: 'plant',
-          entityId: plantId,
-          isTemporary: false
-        })
-
+        const response = await apiService.uploadImage(file, { entityType: 'plant', entityId: plantId, isTemporary: false })
         if (response.success && response.data) {
-          const data = response.data
           setUploadedImages(prev => prev.map(img =>
-            img.file === file ? {
-              ...img,
-              id: data.id,
-              serverUrl: data.url,
-              thumbnailUrl: data.thumbnailUrl,
-              isUploading: false,
-              uploadFailed: false
-            } : img
+            img.file === file ? { ...img, id: response.data!.id, serverUrl: response.data!.url, thumbnailUrl: response.data!.thumbnailUrl, isUploading: false } : img
           ))
-          toast({
-            title: "Imagen subida",
-            description: `${file.name} se subió correctamente`,
-          })
+          toast({ title: "Imagen subida", description: `${file.name} se subió correctamente` })
         } else {
           setUploadedImages(prev => prev.map(img =>
             img.file === file ? { ...img, isUploading: false, uploadFailed: true } : img
           ))
-          toast({
-            title: "Error al subir imagen",
-            description: response.error || "No se pudo subir la imagen",
-            variant: "destructive"
-          })
+          toast({ title: "Error al subir imagen", description: response.error || "No se pudo subir la imagen", variant: "destructive" })
         }
       } catch (error) {
-        console.error('Error uploading image:', error)
         setUploadedImages(prev => prev.map(img =>
           img.file === file ? { ...img, isUploading: false, uploadFailed: true } : img
         ))
@@ -244,1051 +624,952 @@ export default function EditarPlantaPage() {
     }
   }
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragOver(true)
-  }
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragOver(false)
-  }
-
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragOver(true) }
+  const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false) }
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragOver(false)
-    const files = Array.from(e.dataTransfer.files)
-    handleFiles(files)
+    e.preventDefault(); setIsDragOver(false)
+    handleFiles(Array.from(e.dataTransfer.files))
   }
 
   const removeImage = (index: number) => {
     setUploadedImages(prev => {
       const image = prev[index]
-
-      // Si es una imagen existente del servidor, marcarla para eliminación
       if (image.isExisting) {
-        return prev.map((img, i) =>
-          i === index ? { ...img, markedForDeletion: true } : img
-        )
+        return prev.map((img, i) => i === index ? { ...img, markedForDeletion: true } : img)
       }
-
-      // Si es una imagen nueva (con URL local), revocar la URL y eliminar
-      if (image.file) {
-        URL.revokeObjectURL(image.url)
-      }
-
+      if (image.file) URL.revokeObjectURL(image.url)
       return prev.filter((_, i) => i !== index)
     })
   }
 
   const restoreImage = (index: number) => {
-    setUploadedImages(prev => prev.map((img, i) =>
-      i === index ? { ...img, markedForDeletion: false } : img
-    ))
+    setUploadedImages(prev => prev.map((img, i) => i === index ? { ...img, markedForDeletion: false } : img))
   }
 
-  // Cargar datos de la planta
-  const loadPlantData = async () => {
-    setIsLoadingData(true)
-    try {
-      const response = await apiService.getPlantById(plantId)
-      if (response.success && response.data) {
-        const plant = response.data
-        
-        // Mapear datos de la API al formulario — nombres Darwin Core
-        setFormData({
-          // Taxonomía
-          scientific_name: plant.scientific_name || '',
-          common_name: plant.common_name || '',
-          vernacular_name: plant.vernacular_name || '',
-          family: plant.family || '',
-          genus: plant.genus || '',
-          specific_epithet: plant.specific_epithet || '',
-          scientific_name_authorship: plant.scientific_name_authorship || '',
-          infraspecific_epithet: plant.infraspecific_epithet || '',
-          taxonomic_status: plant.taxonomic_status || 'accepted',
-          taxon_rank: plant.taxon_rank || 'species',
-          taxon_remarks: plant.taxon_remarks || '',
-          kingdom: plant.kingdom || 'Plantae',
-          phylum: plant.phylum || 'Magnoliophyta',
-          class_name: plant.class_name || 'Equisetopsida',
-          order_name: plant.order_name || '',
-          subfamily: plant.subfamily || '',
-          subgenus: plant.subgenus || '',
-          // Espécimen
-          catalog_number: plant.catalog_number || '',
-          record_number: plant.record_number || '',
-          // Identificación
-          identified_by: plant.identified_by || '',
-          date_identified: plant.date_identified || '',
-          determined_by: plant.determined_by || '',
-          determination_date: plant.determination_date || '',
-          updated_by: plant.updated_by || '',
-          date_updated: plant.date_updated || '',
-          type_status: plant.type_status || 'none',
-          // Colección
-          recorded_by: plant.recorded_by || '',
-          additional_collectors: plant.additional_collectors || '',
-          event_date: plant.event_date || '',
-          organism_quantity: plant.organism_quantity || '',
-          organism_quantity_type: plant.organism_quantity_type || '',
-          life_stage: plant.life_stage || '',
-          preparations: plant.preparations || '',
-          disposition: plant.disposition || '',
-          sampling_protocol: plant.sampling_protocol || '',
-          field_number: plant.field_number || '',
-          field_notes: plant.field_notes || '',
-          // Ubicación
-          country: plant.country || 'Colombia',
-          state_province: plant.state_province || '',
-          county: plant.county || '',
-          municipality: plant.municipality || '',
-          locality: plant.locality || '',
-          decimal_latitude: plant.decimal_latitude || '',
-          decimal_latitude_sexagesimal: plant.decimal_latitude_sexagesimal || '',
-          decimal_longitude: plant.decimal_longitude || '',
-          decimal_longitude_sexagesimal: plant.decimal_longitude_sexagesimal || '',
-          minimum_elevation_in_meters: plant.minimum_elevation_in_meters || '',
-          coordinate_uncertainty: plant.coordinate_uncertainty || '',
-          georeferenced_by: plant.georeferenced_by || '',
-          // Ecología
-          habitat: plant.habitat || '',
-          substrate: plant.substrate || '',
-          associated_species: plant.associated_species || '',
-          abundance: plant.abundance || '',
-          reproductive_state: plant.reproductive_state || '',
-          // Morfología
-          plant_habit: plant.plant_habit || '',
-          height_min: plant.height_min || '',
-          height_max: plant.height_max || '',
-          description: plant.description || '',
-          distinguishing_features: plant.distinguishing_features || '',
-          flower_color: plant.flower_color || '',
-          fruit_color: plant.fruit_color || '',
-          leaf_characteristics: plant.leaf_characteristics || '',
-          // Uso y conservación
-          uses: plant.uses || '',
-          care_instructions: plant.care_instructions || '',
-          conservation_status: plant.conservation_status || 'NE',
-          // Sistema
-          status: plant.status || 'draft',
-          featured: plant.featured || false,
-          observations: plant.observations || '',
-          notes: plant.notes || '',
-          // Proyecto
-          project: plant.project || '',
-          photo_record: plant.photo_record || '',
-        })
+  // ── Preparar datos para enviar (camelCase → snake_case) ───────────────────
+  const prepareCommonData = () => {
+    const dateToNull = (dateStr: string) => {
+      if (!dateStr || dateStr.trim() === '') return null
+      return dateStr.includes('T') ? dateStr.split('T')[0] : dateStr
+    }
+    const numToNull = (numStr: string) => (numStr && numStr.trim() !== '' ? numStr : null)
 
-        // Cargar imágenes existentes
-        if (plant.images && Array.isArray(plant.images)) {
-          const existingImages: PlantImage[] = plant.images.map((img: any) => ({
-            id: img.id,
-            url: img.url || img.thumbnailUrl,
-            serverUrl: img.url,
-            thumbnailUrl: img.thumbnailUrl,
-            originalName: img.originalName || img.filename || 'Imagen',
-            isExisting: true,
-            markedForDeletion: false
-          }))
-          setUploadedImages(existingImages)
-        } else if (plant.image_urls) {
-          // Fallback: si las imágenes vienen como array de URLs en image_urls
-          try {
-            const imageUrls = typeof plant.image_urls === 'string'
-              ? JSON.parse(plant.image_urls)
-              : plant.image_urls
-
-            if (Array.isArray(imageUrls) && imageUrls.length > 0) {
-              const existingImages: PlantImage[] = imageUrls.map((url: string, index: number) => ({
-                id: index,
-                url: url,
-                serverUrl: url,
-                originalName: `Imagen ${index + 1}`,
-                isExisting: true,
-                markedForDeletion: false
-              }))
-              setUploadedImages(existingImages)
-            }
-          } catch (e) {
-            console.warn('Error parsing image_urls:', e)
-          }
-        }
-      } else {
-        toast({
-          title: "Error",
-          description: "No se pudo cargar la información de la planta",
-          variant: "destructive"
-        })
-        router.push('/admin/plantas')
-      }
-    } catch (error) {
-      console.error('Error al cargar planta:', error)
-      toast({
-        title: "Error",
-        description: "Ocurrió un error al cargar la información de la planta",
-        variant: "destructive"
-      })
-      router.push('/admin/plantas')
-    } finally {
-      setIsLoadingData(false)
+    return {
+      scientific_name: formData.scientificName || null,
+      scientific_name_authorship: formData.scientificNameAuthorship || null,
+      common_name: formData.vernacularName || null,
+      vernacular_name: formData.vernacularName || null,
+      family: formData.family || null,
+      genus: formData.genus || null,
+      specific_epithet: formData.specificEpithet || null,
+      infraspecific_epithet: formData.infraspecificEpithet || null,
+      taxon_rank: formData.taxonRank || 'species',
+      taxon_remarks: formData.taxonRemarks || null,
+      taxonomic_status: 'accepted',
+      kingdom: formData.kingdom || 'Plantae',
+      phylum: formData.phylum || 'Magnoliophyta',
+      class_name: formData.class || 'Equisetopsida',
+      order_name: formData.orderName || null,
+      subfamily: formData.subfamily || null,
+      subgenus: formData.subgenus || null,
+      catalog_number: formData.catalogNumber || null,
+      record_number: formData.recordNumber || null,
+      identified_by: formData.identifiedBy || null,
+      date_identified: dateToNull(formData.dateIdentified),
+      determination_date: dateToNull(formData.dateIdentified),
+      determined_by: formData.identifiedBy || null,
+      updated_by: formData.updatedBy || null,
+      date_updated: dateToNull(formData.dateUpdated),
+      type_status: 'none',
+      institution_code: formData.institutionCode || 'Institución Universitaria del Putumayo (UNIP)',
+      institution_id: formData.institutionID || '800.247.940',
+      collection_code: formData.collectionCode || 'HEAA',
+      collection_id: formData.collectionID || 'HEAA-ITP',
+      geodetic: formData.geodetic || 'WGS84',
+      occurrence_id: formData.occurrenceID || null,
+      basis_of_record: formData.basisOfRecord || null,
+      record_type: formData.type || null,
+      recorded_by: formData.recordedBy || null,
+      additional_collectors: null,
+      event_date: dateToNull(formData.eventDate),
+      organism_quantity: formData.organismQuantity || null,
+      organism_quantity_type: formData.organismQuantityType || null,
+      life_stage: formData.lifeStage || null,
+      preparations: formData.preparation || null,
+      disposition: formData.disposition || null,
+      sampling_protocol: formData.samplingProtocol || null,
+      field_number: formData.fieldNumber || null,
+      field_notes: formData.fieldNotes || null,
+      country: formData.country || 'Colombia',
+      state_province: formData.stateProvince || null,
+      county: formData.county || null,
+      municipality: formData.municipality || null,
+      locality: formData.locality || null,
+      decimal_latitude: numToNull(formData.decimalLatitude),
+      decimal_longitude: numToNull(formData.decimalLongitude),
+      decimal_latitude_sexagesimal: formData.decimalLatitudeSexagesimal || null,
+      decimal_longitude_sexagesimal: formData.decimalLongitudeSexagesimal || null,
+      minimum_elevation_in_meters: numToNull(formData.minimumElevationInMeters),
+      coordinate_uncertainty: null,
+      georeferenced_by: null,
+      habitat: formData.habitat || null,
+      plant_habit: formData.plantHabit || null,
+      height_min: numToNull(formData.plantHeight),
+      height_max: null,
+      description: formData.description || null,
+      distinguishing_features: formData.leafCharacteristics || null,
+      flower_color: formData.flowerColor || null,
+      fruit_color: formData.fruitColor || null,
+      leaf_characteristics: formData.leafCharacteristics || null,
+      uses: formData.uses || null,
+      observations: formData.additionalRemarks || null,
+      notes: formData.fieldNotes || null,
+      project: formData.project || null,
+      photo_record: formData.photoRecord || null,
     }
   }
 
-  useEffect(() => {
-    if (plantId) {
-      loadPlantData()
-    }
-  }, [plantId])
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  // ── Submit ────────────────────────────────────────────────────────────────
+  const handleSubmit = async (e: React.FormEvent, newStatus?: string) => {
     e.preventDefault()
+    if (isLoading) return
     setIsLoading(true)
 
     try {
-      // Función helper para convertir strings vacíos a null para campos de fecha y convertir formato ISO
-      const dateToNull = (dateStr: string) => {
-        if (!dateStr || dateStr.trim() === '') return null;
-        // Si es una fecha ISO (contiene 'T'), convertir a formato YYYY-MM-DD
-        if (dateStr.includes('T')) {
-          return dateStr.split('T')[0];
-        }
-        return dateStr;
+      if (!apiService.isAuthenticated()) {
+        toast({ title: "Sesión requerida", description: "Debes iniciar sesión como administrador.", variant: "destructive" })
+        router.push('/login')
+        return
       }
 
-      // Función helper para convertir strings vacíos a null para campos numéricos
-      const numToNull = (numStr: string | number | null | undefined) => {
-        if (numStr === null || numStr === undefined) return null
-        const str = String(numStr)
-        return str.trim() !== '' ? str : null
+      if (uploadedImages.some(img => img.isUploading)) {
+        toast({ title: "Espera un momento", description: "Hay imágenes subiendo a Cloudinary. Por favor espera.", variant: "destructive" })
+        return
       }
 
-      // Preparar datos — nombres Darwin Core
-      const updateData: any = {
-        // Taxonomía
-        scientific_name: formData.scientific_name,
-        common_name: formData.common_name || null,
-        vernacular_name: formData.vernacular_name || null,
-        family: formData.family,
-        genus: formData.genus,
-        specific_epithet: formData.specific_epithet || null,
-        scientific_name_authorship: formData.scientific_name_authorship || null,
-        infraspecific_epithet: formData.infraspecific_epithet || null,
-        taxonomic_status: formData.taxonomic_status,
-        taxon_rank: formData.taxon_rank || null,
-        taxon_remarks: formData.taxon_remarks || null,
-        kingdom: formData.kingdom || null,
-        phylum: formData.phylum || null,
-        class_name: formData.class_name || null,
-        order_name: formData.order_name || null,
-        subfamily: formData.subfamily || null,
-        subgenus: formData.subgenus || null,
-        // Espécimen
-        catalog_number: formData.catalog_number || null,
-        record_number: formData.record_number || null,
-        // Identificación
-        identified_by: formData.identified_by || null,
-        date_identified: dateToNull(formData.date_identified),
-        determined_by: formData.determined_by || null,
-        determination_date: dateToNull(formData.determination_date),
-        updated_by: formData.updated_by || null,
-        date_updated: dateToNull(formData.date_updated),
-        type_status: formData.type_status,
-        // Colección
-        recorded_by: formData.recorded_by || null,
-        additional_collectors: formData.additional_collectors || null,
-        event_date: dateToNull(formData.event_date),
-        organism_quantity: formData.organism_quantity || null,
-        organism_quantity_type: formData.organism_quantity_type || null,
-        life_stage: formData.life_stage || null,
-        preparations: formData.preparations || null,
-        disposition: formData.disposition || null,
-        sampling_protocol: formData.sampling_protocol || null,
-        field_number: formData.field_number || null,
-        field_notes: formData.field_notes || null,
-        // Ubicación
-        country: formData.country,
-        state_province: formData.state_province || null,
-        county: formData.county || null,
-        municipality: formData.municipality || null,
-        locality: formData.locality || null,
-        decimal_latitude: numToNull(formData.decimal_latitude),
-        decimal_longitude: numToNull(formData.decimal_longitude),
-        decimal_latitude_sexagesimal: formData.decimal_latitude_sexagesimal || null,
-        decimal_longitude_sexagesimal: formData.decimal_longitude_sexagesimal || null,
-        minimum_elevation_in_meters: numToNull(formData.minimum_elevation_in_meters),
-        coordinate_uncertainty: numToNull(formData.coordinate_uncertainty),
-        georeferenced_by: formData.georeferenced_by || null,
-        // Ecología
-        habitat: formData.habitat || null,
-        substrate: formData.substrate || null,
-        associated_species: formData.associated_species || null,
-        abundance: formData.abundance || null,
-        reproductive_state: formData.reproductive_state || null,
-        // Morfología
-        plant_habit: formData.plant_habit || null,
-        height_min: numToNull(formData.height_min),
-        height_max: numToNull(formData.height_max),
-        description: formData.description || null,
-        distinguishing_features: formData.distinguishing_features || null,
-        flower_color: formData.flower_color || null,
-        fruit_color: formData.fruit_color || null,
-        leaf_characteristics: formData.leaf_characteristics || null,
-        // Uso y conservación
-        uses: formData.uses || null,
-        care_instructions: formData.care_instructions || null,
-        conservation_status: formData.conservation_status,
-        // Sistema
-        status: formData.status,
-        featured: formData.featured,
-        observations: formData.observations || null,
-        notes: formData.notes || null,
-        // Proyecto
-        project: formData.project || null,
-        photo_record: formData.photo_record || null,
-      }
+      const plantData: any = prepareCommonData()
+      plantData.status = newStatus || currentStatus
 
-      // Remover campos undefined o que causen problemas
-      Object.keys(updateData).forEach(key => {
-        if (updateData[key] === undefined) {
-          delete updateData[key]
-        }
-      })
-
-      // Procesar imágenes
-      const activeImages = uploadedImages.filter(img => !img.markedForDeletion)
-      const imagesToDelete = uploadedImages.filter(img => img.markedForDeletion && img.isExisting)
-
-      // Agregar imágenes activas en el formato que espera el backend: [{url, thumbnailUrl}]
-      const imageObjects = activeImages
-        .filter(img => {
-          const url = img.serverUrl || img.url
-          return url && !url.startsWith('blob:')
-        })
-        .map(img => ({
+      // Incluir imágenes nuevas ya subidas
+      const newImages = uploadedImages.filter(img => !img.isExisting && img.id && !img.isUploading)
+      if (newImages.length > 0) {
+        plantData.localImages = newImages.map(img => ({
+          id: img.id,
           url: img.serverUrl || img.url,
-          thumbnailUrl: img.thumbnailUrl || img.serverUrl || img.url
+          thumbnailUrl: img.thumbnailUrl,
+          filename: img.originalName,
+          originalName: img.originalName,
         }))
-
-      if (imageObjects.length > 0) {
-        updateData.images = imageObjects
       }
 
-      // Conservar imageUrls para el log
-      const imageUrls = imageObjects.map(img => img.url)
-
-      // Agregar IDs de imágenes para asociar
-      const imageIds = activeImages
-        .map(img => img.id)
-        .filter((id): id is number => typeof id === 'number')
-
-      if (imageIds.length > 0) {
-        updateData.imageIds = imageIds
+      // Imágenes existentes marcadas para eliminar
+      const toDelete = uploadedImages.filter(img => img.isExisting && img.markedForDeletion && img.id)
+      if (toDelete.length > 0) {
+        plantData.deleteImageIds = toDelete.map(img => img.id)
       }
 
-      // Agregar IDs de imágenes a eliminar
-      if (imagesToDelete.length > 0) {
-        updateData.deleteImageIds = imagesToDelete
-          .map(img => img.id)
-          .filter((id): id is number => typeof id === 'number')
-      }
+      const response = await apiService.updatePlant(plantId, plantData)
 
-      console.log('🌱 Datos de la planta a actualizar:', updateData)
-      console.log('🖼️ Imágenes activas:', imageUrls.length)
-      console.log('🗑️ Imágenes a eliminar:', imagesToDelete.length)
-      console.log('🔐 Token de autenticación disponible:', !!apiService.getToken())
-
-      const response = await apiService.updatePlant(plantId, updateData)
-      
       if (response.success) {
-        toast({
-          title: "✅ Éxito",
-          description: "La planta ha sido actualizada exitosamente",
-          variant: "default"
-        })
+        toast({ title: "¡Espécimen actualizado!", description: "La información fue guardada correctamente." })
         router.push('/admin/plantas')
       } else {
-        let errorMessage = response.error || "Ocurrió un error al actualizar la planta"
-        let errorTitle = "Error"
-        
-        if (response.error?.includes('Autenticación requerida')) {
-          errorTitle = "Sesión requerida"
-          errorMessage = "Debes iniciar sesión como administrador para editar plantas."
-          router.push('/login')
-        } else if (response.error?.includes('Permisos insuficientes')) {
-          errorTitle = "Sin permisos"
-          errorMessage = "Tu cuenta no tiene permisos para editar plantas. Contacta al administrador."
-        }
-        
-        console.error('Error detallado al actualizar planta:', response)
-        toast({
-          title: errorTitle,
-          description: errorMessage,
-          variant: "destructive"
-        })
+        throw new Error(response.error || 'Error al actualizar el espécimen')
       }
     } catch (error: any) {
-      console.error('Error al actualizar planta:', error)
-      toast({
-        title: "Error",
-        description: error.message || "Ocurrió un error al actualizar la planta",
-        variant: "destructive"
-      })
+      toast({ title: "Error al guardar", description: error.message || "Hubo un error al guardar la información", variant: "destructive" })
     } finally {
       setIsLoading(false)
     }
   }
 
+  // ── Render de carga ───────────────────────────────────────────────────────
   if (isLoadingData) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Cargando información de la planta...</p>
+        <div className="text-center space-y-3">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Cargando datos del espécimen...</p>
         </div>
       </div>
     )
   }
 
+  // ── Render principal ──────────────────────────────────────────────────────
   return (
     <div className="space-y-6 w-full max-w-5xl mx-auto pb-16">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Editar Planta</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Editar Espécimen</h1>
           <p className="text-muted-foreground">
-            Modifica la información del espécimen: {formData.scientific_name || 'Sin nombre científico'}
+            {formData.scientificName
+              ? <><em>{formData.scientificName}</em> · ID {plantId}</>
+              : `Espécimen ID ${plantId}`}
           </p>
         </div>
-        <Button asChild variant="outline">
-          <Link href="/admin/plantas">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Volver
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button asChild variant="outline">
+            <Link href="/admin/plantas"><ArrowLeft className="mr-2 h-4 w-4" />Volver</Link>
+          </Button>
+        </div>
       </div>
 
+      {/* Modal gestión plantillas */}
+      <PlantillaModal
+        plantillaModal={plantillaModal}
+        plantillaForm={plantillaForm}
+        setPlantillaForm={setPlantillaForm}
+        setPlantillaModal={setPlantillaModal}
+        onSave={savePlantillaForm}
+        camposInstitucion={CAMPOS_INSTITUCION}
+        camposUbicacion={CAMPOS_UBICACION}
+      />
+
       <form onSubmit={handleSubmit} className="space-y-8">
-        <Tabs defaultValue="taxonomia" className="w-full">
-          <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 w-full">
-            <TabsTrigger value="taxonomia">Taxonomía</TabsTrigger>
-            <TabsTrigger value="herbario">Herbario</TabsTrigger>
-            <TabsTrigger value="coleccion">Colección</TabsTrigger>
-            <TabsTrigger value="ubicacion">Ubicación</TabsTrigger>
-            <TabsTrigger value="caracteristicas">Características</TabsTrigger>
-            <TabsTrigger value="imagenes">Imágenes</TabsTrigger>
-            <TabsTrigger value="estado">Estado</TabsTrigger>
+        <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
+
+          <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 w-full">
+            {[
+              { value: 'registro',        label: 'Registro' },
+              { value: 'coleccion',       label: 'Colección' },
+              { value: 'ubicacion',       label: 'Ubicación' },
+              { value: 'taxonomia',       label: 'Taxonomía' },
+              { value: 'caracteristicas', label: 'Características' },
+              { value: 'imagenes',        label: 'Imágenes' },
+            ].map(({ value, label }) => (
+              <TabsTrigger key={value} value={value}>{label}</TabsTrigger>
+            ))}
           </TabsList>
 
-          {/* Sección: Taxonomía */}
-          <TabsContent value="taxonomia" className="space-y-6 mt-6">
+          {/* ── TAB 1: REGISTRO ─────────────────────────────────────────── */}
+          <TabsContent value="registro" className="space-y-6 mt-6">
+
+            {/* cols 1-3: DwC básico */}
             <Card>
               <CardHeader>
-                <CardTitle>Información Taxonómica</CardTitle>
-                <CardDescription>Clasificación científica del espécimen</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="scientific_name">Nombre científico *</Label>
-                  <Input 
-                    id="scientific_name" 
-                    placeholder="Ej. Quercus humboldtii"
-                    value={formData.scientific_name}
-                    onChange={(e) => handleInputChange('scientific_name', e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="vernacular_name">Nombre vernáculo</Label>
-                    <Input 
-                      id="vernacular_name" 
-                      placeholder="Ej. Roble"
-                      value={formData.vernacular_name}
-                      onChange={(e) => handleInputChange('vernacular_name', e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="common_name">Nombre común</Label>
-                    <Input 
-                      id="common_name" 
-                      placeholder="Ej. Roble común"
-                      value={formData.common_name}
-                      onChange={(e) => handleInputChange('common_name', e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="family">Familia *</Label>
-                    <Input 
-                      id="family" 
-                      placeholder="Ej. Fagaceae"
-                      value={formData.family}
-                      onChange={(e) => handleInputChange('family', e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="genus">Género *</Label>
-                    <Input 
-                      id="genus" 
-                      placeholder="Ej. Quercus"
-                      value={formData.genus}
-                      onChange={(e) => handleInputChange('genus', e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="specific_epithet">Especie</Label>
-                    <Input
-                      id="specific_epithet"
-                      placeholder="Ej. humboldtii"
-                      value={formData.specific_epithet}
-                      onChange={(e) => handleInputChange('specific_epithet', e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="scientific_name_authorship">Autoría del nombre científico</Label>
-                    <Input
-                      id="scientific_name_authorship"
-                      placeholder="Ej. Bonpl."
-                      value={formData.scientific_name_authorship}
-                      onChange={(e) => handleInputChange('scientific_name_authorship', e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="infraspecific_epithet">Epíteto infraespecífico</Label>
-                    <Input 
-                      id="infraspecific_epithet" 
-                      placeholder="Ej. var. colombiana"
-                      value={formData.infraspecific_epithet}
-                      onChange={(e) => handleInputChange('infraspecific_epithet', e.target.value)}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Sección: Herbario */}
-          <TabsContent value="herbario" className="space-y-6 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Información del Herbario</CardTitle>
-                <CardDescription>Datos de determinación y tipo de espécimen</CardDescription>
+                <CardTitle>Información de Registro</CardTitle>
+                <CardDescription>Datos básicos del registro biológico (Darwin Core)</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="catalog_number">Número de catálogo</Label>
-                    <Input
-                      id="catalog_number"
-                      placeholder="Ej. HEAA-001234"
-                      value={formData.catalog_number}
-                      onChange={(e) => handleInputChange('catalog_number', e.target.value)}
-                    />
+                    <Label htmlFor="occurrenceID">ID del registro biológico</Label>
+                    <Input id="occurrenceID" placeholder="Ej. AO4604"
+                      value={formData.occurrenceID} onChange={e => handleInputChange('occurrenceID', e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="determined_by">Determinado por</Label>
-                    <Input 
-                      id="determined_by" 
-                      placeholder="Ej. Dr. Juan Pérez"
-                      value={formData.determined_by}
-                      onChange={(e) => handleInputChange('determined_by', e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="determination_date">Fecha de determinación</Label>
-                    <Input 
-                      id="determination_date" 
-                      type="date"
-                      value={formData.determination_date}
-                      onChange={(e) => handleInputChange('determination_date', e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="type_status">Estado del tipo</Label>
-                    <Select value={formData.type_status} onValueChange={(value) => handleInputChange('type_status', value)}>
-                      <SelectTrigger id="type_status">
-                        <SelectValue placeholder="Selecciona el estado" />
-                      </SelectTrigger>
+                    <Label htmlFor="basisOfRecord">Base del registro</Label>
+                    <Select value={formData.basisOfRecord} onValueChange={v => handleInputChange('basisOfRecord', v)}>
+                      <SelectTrigger id="basisOfRecord"><SelectValue placeholder="Selecciona una opción" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Ninguno</SelectItem>
-                        <SelectItem value="holotype">Holotipo</SelectItem>
-                        <SelectItem value="isotype">Isotipo</SelectItem>
-                        <SelectItem value="paratype">Paratipo</SelectItem>
-                        <SelectItem value="lectotype">Lectotipo</SelectItem>
-                        <SelectItem value="neotype">Neotipo</SelectItem>
-                        <SelectItem value="epitype">Epitipo</SelectItem>
+                        <SelectItem value="preservedSpecimen">Espécimen preservado</SelectItem>
+                        <SelectItem value="livingSpecimen">Espécimen vivo</SelectItem>
+                        <SelectItem value="fossilSpecimen">Espécimen fósil</SelectItem>
+                        <SelectItem value="humanObservation">Observación humana</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="type">Tipo</Label>
+                    <Select value={formData.type} onValueChange={v => handleInputChange('type', v)}>
+                      <SelectTrigger id="type"><SelectValue placeholder="Selecciona un tipo" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="physicalObject">Objeto físico</SelectItem>
+                        <SelectItem value="event">Evento</SelectItem>
+                        <SelectItem value="location">Localidad</SelectItem>
+                        <SelectItem value="identification">Identificación</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
 
-          {/* Sección: Ubicación */}
-          <TabsContent value="ubicacion" className="space-y-6 mt-6">
+            {/* cols 4-7: Institución */}
             <Card>
               <CardHeader>
-                <CardTitle>Información Geográfica</CardTitle>
-                <CardDescription>Ubicación donde fue recolectado el espécimen</CardDescription>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle>Información Institucional</CardTitle>
+                    <CardDescription>Datos de la institución y la colección</CardDescription>
+                  </div>
+                  <PlantillaDropdown
+                    tipo="institucion"
+                    plantillas={plantillas}
+                    open={plantillaMenu === 'institucion'}
+                    onToggle={() => setPlantillaMenu(p => p === 'institucion' ? null : 'institucion')}
+                    onApply={applyPlantilla}
+                    onNew={() => openNewPlantilla('institucion')}
+                    onEdit={openEditPlantilla}
+                    onDelete={deletePlantilla}
+                  />
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="state_province">Departamento</Label>
-                    <Input
-                      id="state_province"
-                      placeholder="Ej. Putumayo"
-                      value={formData.state_province}
-                      onChange={(e) => handleInputChange('state_province', e.target.value)}
-                    />
+                    <Label htmlFor="institutionCode">Código de la institución</Label>
+                    <Input id="institutionCode" value={formData.institutionCode}
+                      onChange={e => handleInputChange('institutionCode', e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="municipality">Municipio</Label>
-                    <Input 
-                      id="municipality" 
-                      placeholder="Ej. Mocoa"
-                      value={formData.municipality}
-                      onChange={(e) => handleInputChange('municipality', e.target.value)}
-                    />
+                    <Label htmlFor="institutionID">ID de la institución</Label>
+                    <Input id="institutionID" value={formData.institutionID}
+                      onChange={e => handleInputChange('institutionID', e.target.value)} />
                   </div>
                 </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="collectionCode">Código de la colección</Label>
+                    <Input id="collectionCode" value={formData.collectionCode}
+                      onChange={e => handleInputChange('collectionCode', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="collectionID">ID de la colección</Label>
+                    <Input id="collectionID" placeholder="Ej. HEAA-ITP"
+                      value={formData.collectionID} onChange={e => handleInputChange('collectionID', e.target.value)} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-                <div className="space-y-2">
-                  <Label htmlFor="locality">Localidad específica</Label>
-                  <Input
-                    id="locality"
-                    placeholder="Ej. Vereda El Pepino, 2 km al sur de la cabecera municipal"
-                    value={formData.locality}
-                    onChange={(e) => handleInputChange('locality', e.target.value)}
-                  />
+            {/* cols 8-10: Espécimen */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Datos del Espécimen</CardTitle>
+                <CardDescription>Número de catálogo, registro y colector</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="catalogNumber">Número de catálogo *</Label>
+                    <Input id="catalogNumber" placeholder="Ej. 000233" required
+                      value={formData.catalogNumber} onChange={e => handleInputChange('catalogNumber', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="recordNumber">Número de registro</Label>
+                    <Input id="recordNumber" placeholder="Ej. AO4604"
+                      value={formData.recordNumber} onChange={e => handleInputChange('recordNumber', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="recordedBy">Registrado por *</Label>
+                    <Input id="recordedBy" placeholder="Ej. Andrés Orejuela / Guerly León" required
+                      value={formData.recordedBy} onChange={e => handleInputChange('recordedBy', e.target.value)} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Estado actual */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Estado del Espécimen</CardTitle>
+                <CardDescription>Visibilidad del registro en el catálogo público</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="status">Estado</Label>
+                    <Select value={currentStatus} onValueChange={setCurrentStatus}>
+                      <SelectTrigger id="status"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="draft">Borrador</SelectItem>
+                        <SelectItem value="review">En revisión</SelectItem>
+                        <SelectItem value="published">Publicado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+          </TabsContent>
+
+          {/* ── TAB 2: COLECCIÓN ─────────────────────────────────────────── */}
+          <TabsContent value="coleccion" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Información de Colección</CardTitle>
+                <CardDescription>Datos sobre la recolección y preparación del espécimen</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="organismQuantity">Cantidad del organismo</Label>
+                    <Input id="organismQuantity" placeholder="Cantidad"
+                      value={formData.organismQuantity} onChange={e => handleInputChange('organismQuantity', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="organismQuantityType">Tipo de cantidad</Label>
+                    <Input id="organismQuantityType" placeholder="Ej. Individuos, muestras"
+                      value={formData.organismQuantityType} onChange={e => handleInputChange('organismQuantityType', e.target.value)} />
+                  </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
-                    <Label htmlFor="decimal_latitude">Latitud decimal</Label>
-                    <Input
-                      id="decimal_latitude"
-                      placeholder="Ej. 1.1234"
-                      value={formData.decimal_latitude}
-                      onChange={(e) => handleInputChange('decimal_latitude', e.target.value)}
-                    />
+                    <Label htmlFor="lifeStage">Etapa de vida</Label>
+                    <Select value={formData.lifeStage} onValueChange={v => handleInputChange('lifeStage', v)}>
+                      <SelectTrigger id="lifeStage"><SelectValue placeholder="Selecciona una etapa" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="floracion">Floración</SelectItem>
+                        <SelectItem value="fructificacion">Fructificación</SelectItem>
+                        <SelectItem value="vegetativo">Vegetativo</SelectItem>
+                        <SelectItem value="semilla">Semilla</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="decimal_longitude">Longitud decimal</Label>
-                    <Input
-                      id="decimal_longitude"
-                      placeholder="Ej. -76.5678"
-                      value={formData.decimal_longitude}
-                      onChange={(e) => handleInputChange('decimal_longitude', e.target.value)}
-                    />
+                    <Label htmlFor="preparation">Preparaciones</Label>
+                    <Input id="preparation" placeholder="Ej. Exsicado botánico"
+                      value={formData.preparation} onChange={e => handleInputChange('preparation', e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="minimum_elevation_in_meters">Altitud (m)</Label>
-                    <Input
-                      id="minimum_elevation_in_meters"
-                      placeholder="Ej. 800"
-                      value={formData.minimum_elevation_in_meters}
-                      onChange={(e) => handleInputChange('minimum_elevation_in_meters', e.target.value)}
-                    />
+                    <Label htmlFor="disposition">Disposición</Label>
+                    <Select value={formData.disposition} onValueChange={v => handleInputChange('disposition', v)}>
+                      <SelectTrigger id="disposition"><SelectValue placeholder="Selecciona disposición" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="enColeccion">En colección</SelectItem>
+                        <SelectItem value="prestamo">En préstamo</SelectItem>
+                        <SelectItem value="perdido">Perdido</SelectItem>
+                        <SelectItem value="destruido">Destruido</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="samplingProtocol">Protocolo de muestreo</Label>
+                    <Input id="samplingProtocol" placeholder="Ej. Colección general"
+                      value={formData.samplingProtocol} onChange={e => handleInputChange('samplingProtocol', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="eventDate">Fecha del evento</Label>
+                    <Input id="eventDate" type="date"
+                      value={formData.eventDate} onChange={e => handleInputChange('eventDate', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="fieldNumber">Número de campo</Label>
+                    <Input id="fieldNumber" placeholder="Ej. AO4604"
+                      value={formData.fieldNumber} onChange={e => handleInputChange('fieldNumber', e.target.value)} />
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="habitat">Hábitat</Label>
-                  <Textarea 
-                    id="habitat" 
-                    placeholder="Describe el hábitat donde fue encontrado el espécimen..."
-                    value={formData.habitat}
-                    onChange={(e) => handleInputChange('habitat', e.target.value)}
-                    rows={3}
-                  />
+                  <Input id="habitat" placeholder="Descripción del hábitat donde se colectó el espécimen"
+                    value={formData.habitat} onChange={e => handleInputChange('habitat', e.target.value)} />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="fieldNotes">Notas de campo</Label>
+                  <Textarea id="fieldNotes" rows={3}
+                    placeholder="Ej. Árbol 5 m. Cáliz verde, corola blanca, anteras amarillas."
+                    value={formData.fieldNotes} onChange={e => handleInputChange('fieldNotes', e.target.value)} />
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Sección: Colección */}
-          <TabsContent value="coleccion" className="space-y-6 mt-6">
+          {/* ── TAB 3: UBICACIÓN ─────────────────────────────────────────── */}
+          <TabsContent value="ubicacion" className="space-y-6 mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>Información de Colección</CardTitle>
-                <CardDescription>Datos sobre la recolección del espécimen</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="additional_collectors">Colectores adicionales</Label>
-                  <Input 
-                    id="additional_collectors" 
-                    placeholder="Ej. María García, Luis Rodríguez"
-                    value={formData.additional_collectors}
-                    onChange={(e) => handleInputChange('additional_collectors', e.target.value)}
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle>Ubicación Geográfica</CardTitle>
+                    <CardDescription>Información sobre la localidad donde se recolectó el espécimen</CardDescription>
+                  </div>
+                  <PlantillaDropdown
+                    tipo="ubicacion"
+                    plantillas={plantillas}
+                    open={plantillaMenu === 'ubicacion'}
+                    onToggle={() => setPlantillaMenu(p => p === 'ubicacion' ? null : 'ubicacion')}
+                    onApply={applyPlantilla}
+                    onNew={() => openNewPlantilla('ubicacion')}
+                    onEdit={openEditPlantilla}
+                    onDelete={deletePlantilla}
                   />
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="event_date">Fecha de colección</Label>
-                  <Input
-                    id="event_date"
-                    type="date"
-                    value={formData.event_date}
-                    onChange={(e) => handleInputChange('event_date', e.target.value)}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Sección: Características */}
-          <TabsContent value="caracteristicas" className="space-y-6 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Características del Espécimen</CardTitle>
-                <CardDescription>Descripción morfológica y características observables</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="description">Descripción general</Label>
-                  <Textarea 
-                    id="description" 
-                    placeholder="Describe las características generales del espécimen..."
-                    value={formData.description}
-                    onChange={(e) => handleInputChange('description', e.target.value)}
-                    rows={4}
-                  />
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="country">País</Label>
+                    <Input id="country" placeholder="Ej. Colombia"
+                      value={formData.country} onChange={e => handleInputChange('country', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="stateProvince">Departamento</Label>
+                    <Input id="stateProvince" placeholder="Ej. Putumayo"
+                      value={formData.stateProvince} onChange={e => handleInputChange('stateProvince', e.target.value)} />
+                  </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="plant_habit">Hábito de crecimiento</Label>
-                    <Select value={formData.plant_habit} onValueChange={(value) => handleInputChange('plant_habit', value)}>
-                      <SelectTrigger id="habit">
-                        <SelectValue placeholder="Selecciona el hábito" />
-                      </SelectTrigger>
+                    <Label htmlFor="county">Municipio</Label>
+                    <Input id="county" placeholder="Ej. Mocoa"
+                      value={formData.county} onChange={e => handleInputChange('county', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="municipality">Centro poblado / Cabecera municipal</Label>
+                    <Input id="municipality" placeholder="Ej. Las Mesas"
+                      value={formData.municipality} onChange={e => handleInputChange('municipality', e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="locality">Localidad *</Label>
+                  <Textarea id="locality" rows={2} required
+                    placeholder="Ej. Vía Mocoa - San Francisco, arriba de la vereda Las Mesas"
+                    value={formData.locality} onChange={e => handleInputChange('locality', e.target.value)} />
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="minimumElevationInMeters">Elevación mínima (m.s.n.m.)</Label>
+                    <Input id="minimumElevationInMeters" type="number" placeholder="Ej. 1300"
+                      value={formData.minimumElevationInMeters} onChange={e => handleInputChange('minimumElevationInMeters', e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Coordenadas (decimal)</Label>
+                    <Button type="button" variant="outline" size="sm" onClick={fetchGPS} disabled={gpsLoading}
+                      title="Obtener coordenadas automáticamente desde tu dispositivo">
+                      {gpsLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MapPin className="mr-2 h-4 w-4" />}
+                      {gpsLoading ? 'Obteniendo...' : 'Usar mi ubicación'}
+                    </Button>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="decimalLatitude" className="text-xs text-muted-foreground">Latitud decimal</Label>
+                      <Input id="decimalLatitude" placeholder="Ej. 1.0934 (neg = Sur)"
+                        value={formData.decimalLatitude} onChange={e => handleInputChange('decimalLatitude', e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="decimalLongitude" className="text-xs text-muted-foreground">Longitud decimal</Label>
+                      <Input id="decimalLongitude" placeholder="Ej. -76.7333 (neg = Oeste)"
+                        value={formData.decimalLongitude} onChange={e => handleInputChange('decimalLongitude', e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="geodetic">Datum geodésico</Label>
+                    <Input id="geodetic" placeholder="Ej. WGS84"
+                      value={formData.geodetic} onChange={e => handleInputChange('geodetic', e.target.value)} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── TAB 4: TAXONOMÍA ─────────────────────────────────────────── */}
+          <TabsContent value="taxonomia" className="space-y-6 mt-6">
+
+            {/* Determinación */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Determinación e Identificación</CardTitle>
+                <CardDescription>Datos de quien identificó el espécimen y confirmó la determinación</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="identifiedBy">Identificado por</Label>
+                    <Input id="identifiedBy" placeholder="Ej. Andrés Orejuela"
+                      value={formData.identifiedBy} onChange={e => handleInputChange('identifiedBy', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="dateIdentified">Fecha de identificación</Label>
+                    <Input id="dateIdentified" type="date"
+                      value={formData.dateIdentified} onChange={e => handleInputChange('dateIdentified', e.target.value)} />
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="updatedBy">Actualizado/Confirmado por</Label>
+                    <Input id="updatedBy" placeholder="Nombre de quien actualizó o confirmó"
+                      value={formData.updatedBy} onChange={e => handleInputChange('updatedBy', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="dateUpdated">Fecha de actualización/Confirmación</Label>
+                    <Input id="dateUpdated" type="date"
+                      value={formData.dateUpdated} onChange={e => handleInputChange('dateUpdated', e.target.value)} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="project">Proyecto</Label>
+                  <Input id="project"
+                    placeholder="Ej. Diversidad de la familia Solanaceae a lo largo del gradiente altitudinal Mocoa - San Francisco"
+                    value={formData.project} onChange={e => handleInputChange('project', e.target.value)} />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Taxonomía */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Información Taxonómica</CardTitle>
+                <CardDescription>Clasificación taxonómica del espécimen</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="scientificName">Nombre científico *</Label>
+                    <div className="flex gap-2">
+                      <Input id="scientificName" placeholder="Ej. Solanum abiaguense" required
+                        value={formData.scientificName} onChange={e => handleInputChange('scientificName', e.target.value)} />
+                      <Button type="button" variant="outline" size="sm" onClick={fetchGbifTaxonomy}
+                        disabled={gbifLoading || !formData.scientificName.trim()}
+                        title="Consultar GBIF y rellenar familia, orden, clase, filo y autoría automáticamente">
+                        {gbifLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Escribe el nombre y presiona ✨ para autocompletar taxonomía desde GBIF</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="scientificNameAuthorship">Autoría del nombre científico</Label>
+                    <Input id="scientificNameAuthorship" placeholder="Se rellena automáticamente con GBIF"
+                      value={formData.scientificNameAuthorship} onChange={e => handleInputChange('scientificNameAuthorship', e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="kingdom">Reino</Label>
+                    <Input id="kingdom" placeholder="Ej. Plantae"
+                      value={formData.kingdom} onChange={e => handleInputChange('kingdom', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phylum">Filo</Label>
+                    <Input id="phylum" placeholder="Ej. Magnoliophyta"
+                      value={formData.phylum} onChange={e => handleInputChange('phylum', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="class">Clase</Label>
+                    <Input id="class" placeholder="Ej. Equisetopsida"
+                      value={formData.class} onChange={e => handleInputChange('class', e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="orderName">Orden</Label>
+                    <Input id="orderName" placeholder="Se rellena con GBIF ✨"
+                      value={formData.orderName} onChange={e => handleInputChange('orderName', e.target.value)} />
+                  </div>
+                  <div className="space-y-2 relative">
+                    <Label htmlFor="family">Familia *</Label>
+                    <Input id="family" placeholder="Ej. Solanaceae" required autoComplete="off"
+                      value={formData.family}
+                      onChange={e => handleAutocomplete('family', e.target.value, 'family')}
+                      onBlur={() => setTimeout(() => setAcOpen(p => ({ ...p, family: false })), 150)} />
+                    {acOpen['family'] && acSuggestions['family']?.length > 0 && (
+                      <div className="absolute z-50 w-full rounded-md border bg-background shadow-lg top-[64px]">
+                        {acSuggestions['family'].map(s => (
+                          <button key={s.id} type="button" onMouseDown={() => pickSuggestion('family', s.value)}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted border-b last:border-0">{s.label}</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="subfamily">Subfamilia</Label>
+                    <Input id="subfamily" placeholder="Subfamilia (opcional)"
+                      value={formData.subfamily} onChange={e => handleInputChange('subfamily', e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2 relative">
+                    <Label htmlFor="genus">Género *</Label>
+                    <Input id="genus" placeholder="Ej. Solanum" required autoComplete="off"
+                      value={formData.genus}
+                      onChange={e => handleAutocomplete('genus', e.target.value, 'scientific')}
+                      onBlur={() => setTimeout(() => setAcOpen(p => ({ ...p, genus: false })), 150)} />
+                    {acOpen['genus'] && acSuggestions['genus']?.length > 0 && (
+                      <div className="absolute z-50 w-full rounded-md border bg-background shadow-lg top-[64px]">
+                        {acSuggestions['genus'].map(s => (
+                          <button key={s.id} type="button" onMouseDown={() => pickSuggestion('genus', s.value)}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted border-b last:border-0">{s.label}</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="subgenus">Subgénero</Label>
+                    <Input id="subgenus" placeholder="Subgénero (opcional)"
+                      value={formData.subgenus} onChange={e => handleInputChange('subgenus', e.target.value)} />
+                  </div>
+                  <div className="space-y-2 relative">
+                    <Label htmlFor="specificEpithet">Epíteto específico *</Label>
+                    <Input id="specificEpithet" placeholder="Ej. abiaguense" required autoComplete="off"
+                      value={formData.specificEpithet}
+                      onChange={e => handleAutocomplete('specificEpithet', e.target.value, 'scientific')}
+                      onBlur={() => setTimeout(() => setAcOpen(p => ({ ...p, specificEpithet: false })), 150)} />
+                    {acOpen['specificEpithet'] && acSuggestions['specificEpithet']?.length > 0 && (
+                      <div className="absolute z-50 w-full rounded-md border bg-background shadow-lg top-[64px]">
+                        {acSuggestions['specificEpithet'].map(s => (
+                          <button key={s.id} type="button" onMouseDown={() => pickSuggestion('specificEpithet', s.value)}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted border-b last:border-0">{s.label}</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="infraspecificEpithet">Epíteto infraespecífico</Label>
+                    <Input id="infraspecificEpithet" placeholder="Opcional"
+                      value={formData.infraspecificEpithet} onChange={e => handleInputChange('infraspecificEpithet', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="taxonRank">Categoría del taxón</Label>
+                    <Select value={formData.taxonRank} onValueChange={v => handleInputChange('taxonRank', v)}>
+                      <SelectTrigger id="taxonRank"><SelectValue placeholder="Selecciona una categoría" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="árbol">Árbol</SelectItem>
-                        <SelectItem value="arbusto">Arbusto</SelectItem>
-                        <SelectItem value="hierba">Hierba</SelectItem>
-                        <SelectItem value="trepadora">Trepadora</SelectItem>
-                        <SelectItem value="epífita">Epífita</SelectItem>
-                        <SelectItem value="suculenta">Suculenta</SelectItem>
+                        <SelectItem value="species">Especie</SelectItem>
+                        <SelectItem value="subspecies">Subespecie</SelectItem>
+                        <SelectItem value="variety">Variedad</SelectItem>
+                        <SelectItem value="form">Forma</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="height_min">Altura mínima (m)</Label>
-                    <Input 
-                      id="height_min" 
-                      placeholder="Ej. 1.5"
-                      value={formData.height_min}
-                      onChange={(e) => handleInputChange('height_min', e.target.value)}
-                    />
+                    <Label htmlFor="vernacularName">Nombre común</Label>
+                    <Input id="vernacularName" placeholder="Nombre común (opcional)"
+                      value={formData.vernacularName} onChange={e => handleInputChange('vernacularName', e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="taxonRemarks">Comentarios del taxón</Label>
+                  <Textarea id="taxonRemarks" rows={3} placeholder="Comentarios adicionales sobre el taxón..."
+                    value={formData.taxonRemarks} onChange={e => handleInputChange('taxonRemarks', e.target.value)} />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── TAB 5: CARACTERÍSTICAS ───────────────────────────────────── */}
+          <TabsContent value="caracteristicas" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Características del Espécimen</CardTitle>
+                <CardDescription>Descripción morfológica y ecológica detallada</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="description">Descripción general</Label>
+                  <Textarea id="description" rows={4} placeholder="Descripción detallada del espécimen..."
+                    value={formData.description} onChange={e => handleInputChange('description', e.target.value)} />
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="plantHeight">Altura de la planta (m)</Label>
+                    <Input id="plantHeight" type="number" step="0.1" placeholder="Ej. 5.0"
+                      value={formData.plantHeight} onChange={e => handleInputChange('plantHeight', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="plantHabit">Hábito de crecimiento</Label>
+                    <Select value={formData.plantHabit} onValueChange={v => handleInputChange('plantHabit', v)}>
+                      <SelectTrigger id="plantHabit"><SelectValue placeholder="Selecciona un hábito" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="arbol">Árbol</SelectItem>
+                        <SelectItem value="arbusto">Arbusto</SelectItem>
+                        <SelectItem value="hierba">Hierba</SelectItem>
+                        <SelectItem value="trepadora">Trepadora</SelectItem>
+                        <SelectItem value="epifita">Epífita</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="height_max">Altura máxima (m)</Label>
-                    <Input 
-                      id="height_max" 
-                      placeholder="Ej. 15"
-                      value={formData.height_max}
-                      onChange={(e) => handleInputChange('height_max', e.target.value)}
-                    />
+                    <Label htmlFor="flowerColor">Color de la flor</Label>
+                    <Input id="flowerColor" placeholder="Ej. Corola blanca, anteras amarillas"
+                      value={formData.flowerColor} onChange={e => handleInputChange('flowerColor', e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="reproductive_state">Estado reproductivo</Label>
-                    <Input 
-                      id="reproductive_state" 
-                      placeholder="Ej. Floreciendo, fructificando"
-                      value={formData.reproductive_state}
-                      onChange={(e) => handleInputChange('reproductive_state', e.target.value)}
-                    />
+                    <Label htmlFor="fruitColor">Color del fruto</Label>
+                    <Input id="fruitColor" placeholder="Color del fruto (si aplica)"
+                      value={formData.fruitColor} onChange={e => handleInputChange('fruitColor', e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="leafCharacteristics">Características de las hojas</Label>
+                    <Textarea id="leafCharacteristics" rows={3} placeholder="Descripción de las hojas..."
+                      value={formData.leafCharacteristics} onChange={e => handleInputChange('leafCharacteristics', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="uses">Usos</Label>
+                    <Textarea id="uses" rows={3} placeholder="Usos tradicionales o conocidos..."
+                      value={formData.uses} onChange={e => handleInputChange('uses', e.target.value)} />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="distinguishing_features">Características distintivas</Label>
-                  <Textarea 
-                    id="distinguishing_features" 
-                    placeholder="Describe las características que distinguen este espécimen..."
-                    value={formData.distinguishing_features}
-                    onChange={(e) => handleInputChange('distinguishing_features', e.target.value)}
-                    rows={3}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="uses">Usos conocidos</Label>
-                  <Textarea 
-                    id="uses" 
-                    placeholder="Describe los usos medicinales, alimenticios o de otro tipo..."
-                    value={formData.uses}
-                    onChange={(e) => handleInputChange('uses', e.target.value)}
-                    rows={3}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="care_instructions">Instrucciones de cuidado</Label>
-                  <Textarea 
-                    id="care_instructions" 
-                    placeholder="Instrucciones para el cuidado y mantenimiento..."
-                    value={formData.care_instructions}
-                    onChange={(e) => handleInputChange('care_instructions', e.target.value)}
-                    rows={3}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="conservation_status">Estado de conservación</Label>
-                  <Select value={formData.conservation_status} onValueChange={(value) => handleInputChange('conservation_status', value)}>
-                    <SelectTrigger id="conservation_status">
-                      <SelectValue placeholder="Selecciona el estado" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="NE">No Evaluado</SelectItem>
-                      <SelectItem value="DD">Datos Insuficientes</SelectItem>
-                      <SelectItem value="LC">Preocupación Menor</SelectItem>
-                      <SelectItem value="NT">Casi Amenazado</SelectItem>
-                      <SelectItem value="VU">Vulnerable</SelectItem>
-                      <SelectItem value="EN">En Peligro</SelectItem>
-                      <SelectItem value="CR">En Peligro Crítico</SelectItem>
-                      <SelectItem value="EW">Extinto en Estado Silvestre</SelectItem>
-                      <SelectItem value="EX">Extinto</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="observations">Observaciones</Label>
-                  <Textarea 
-                    id="observations" 
-                    placeholder="Observaciones adicionales sobre el espécimen..."
-                    value={formData.observations}
-                    onChange={(e) => handleInputChange('observations', e.target.value)}
-                    rows={3}
-                  />
+                  <Label htmlFor="additionalRemarks">Observaciones adicionales</Label>
+                  <Textarea id="additionalRemarks" rows={3} placeholder="Cualquier otra información relevante..."
+                    value={formData.additionalRemarks} onChange={e => handleInputChange('additionalRemarks', e.target.value)} />
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Sección: Imágenes */}
+          {/* ── TAB 6: IMÁGENES ─────────────────────────────────────────── */}
           <TabsContent value="imagenes" className="space-y-6 mt-6">
             <Card>
               <CardHeader>
                 <CardTitle>Imágenes del Espécimen</CardTitle>
-                <CardDescription>
-                  Agrega o actualiza las fotografías del espécimen. Formatos aceptados: JPG, PNG, GIF, WebP. Máximo 10MB por imagen.
-                </CardDescription>
+                <CardDescription>Fotografías y documentación visual (se almacenan en Cloudinary)</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Zona de arrastrar y soltar */}
-                <div
-                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                    isDragOver
-                      ? 'border-green-500 bg-green-50'
-                      : 'border-gray-300 hover:border-gray-400'
-                  }`}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                >
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    id="imageUpload"
-                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                    multiple
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                  <ImagePlus className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                  <p className="text-lg font-medium text-gray-700 mb-2">
-                    Arrastra y suelta imágenes aquí
-                  </p>
-                  <p className="text-sm text-gray-500 mb-4">
-                    o haz clic en el botón para seleccionar
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
+              <CardContent>
+                <div className="grid gap-5">
+                  <div
+                    className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-12 text-center transition-colors ${isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'}`}
+                    onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
                   >
-                    <Upload className="mr-2 h-4 w-4" />
-                    Seleccionar imágenes
-                  </Button>
-                </div>
+                    <div className="mb-4 rounded-full bg-primary/10 p-3">
+                      <Upload className="h-6 w-6 text-primary" />
+                    </div>
+                    <h3 className="mb-1 text-lg font-semibold">Arrastra y suelta imágenes</h3>
+                    <p className="mb-4 text-sm text-muted-foreground">O haz clic para seleccionar archivos</p>
+                    <Button variant="outline" size="sm" type="button"
+                      onClick={() => document.getElementById('file-input-edit')?.click()}>
+                      Seleccionar archivos
+                    </Button>
+                    <input id="file-input-edit" type="file" multiple accept="image/*" onChange={handleFileSelect} className="hidden" />
+                  </div>
 
-                {/* Vista previa de imágenes */}
-                {uploadedImages.length > 0 && (
-                  <div className="space-y-4">
-                    <h4 className="font-medium text-sm text-gray-700">
-                      Imágenes ({uploadedImages.filter(img => !img.markedForDeletion).length})
-                    </h4>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {uploadedImages.map((image, index) => (
-                        <div
-                          key={image.id || index}
-                          className={`relative group rounded-lg overflow-hidden border ${
-                            image.markedForDeletion
-                              ? 'opacity-50 border-red-300 bg-red-50'
-                              : 'border-gray-200'
-                          }`}
-                        >
-                          <div className="aspect-square relative">
-                            {image.isUploading ? (
-                              <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-                                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                              </div>
-                            ) : (
-                              <CloudinaryImage
-                                src={image.serverUrl || image.url}
-                                alt={image.originalName}
-                                fill
-                                className="object-cover"
-                              />
-                            )}
+                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+                    {uploadedImages.map((image, index) => (
+                      <div key={index}
+                        className={`relative aspect-square rounded-md border overflow-hidden ${image.markedForDeletion ? 'opacity-40' : 'bg-muted'}`}>
+                        {image.isUploading ? (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                            <Loader2 className="h-6 w-6 text-white animate-spin" />
                           </div>
-
-                          {/* Indicador de estado */}
-                          {image.uploadFailed && (
-                            <div className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded">
-                              Error
-                            </div>
-                          )}
-                          {image.isExisting && !image.markedForDeletion && (
-                            <div className="absolute top-2 left-2 bg-green-500 text-white text-xs px-2 py-1 rounded">
-                              Guardada
-                            </div>
-                          )}
-                          {image.markedForDeletion && (
-                            <div className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded">
-                              Se eliminará
-                            </div>
-                          )}
-
-                          {/* Botones de acción */}
-                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        ) : (
+                          <>
+                            <img src={image.url} alt={image.originalName} className="w-full h-full object-cover" />
                             {image.markedForDeletion ? (
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="icon"
-                                className="h-8 w-8 bg-green-600 hover:bg-green-700"
-                                onClick={() => restoreImage(index)}
-                              >
-                                <span className="text-white text-xs">↩</span>
+                              <Button variant="outline" size="sm" type="button"
+                                className="absolute inset-x-1 bottom-1 h-6 text-xs"
+                                onClick={() => restoreImage(index)}>
+                                Restaurar
                               </Button>
                             ) : (
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => removeImage(index)}
-                              >
+                              <Button variant="destructive" size="icon" type="button"
+                                className="absolute right-1 top-1 h-6 w-6" onClick={() => removeImage(index)}>
                                 <X className="h-4 w-4" />
                               </Button>
                             )}
-                          </div>
-
-                          {/* Nombre del archivo */}
-                          <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-2 truncate">
-                            {image.originalName}
-                          </div>
-                        </div>
-                      ))}
+                            {image.isExisting && !image.markedForDeletion && (
+                              <div className="absolute bottom-1 left-1 bg-blue-500 text-white rounded-full px-1.5 py-0.5 text-[10px]">
+                                Guardada
+                              </div>
+                            )}
+                            {image.id && !image.isExisting && !image.isUploading && !image.uploadFailed && (
+                              <div className="absolute bottom-1 right-1 bg-green-500 text-white rounded-full p-1">
+                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    ))}
+                    <div className="flex aspect-square items-center justify-center rounded-md border border-dashed cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => document.getElementById('file-input-edit')?.click()}>
+                      <Button variant="ghost" size="icon" type="button"><Plus className="h-4 w-4" /></Button>
                     </div>
                   </div>
-                )}
+                </div>
 
-                {/* Mensaje cuando no hay imágenes */}
-                {uploadedImages.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <p>No hay imágenes asociadas a este espécimen.</p>
-                    <p className="text-sm mt-1">Agrega imágenes para mejorar la documentación.</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Sección: Estado */}
-          <TabsContent value="estado" className="space-y-6 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Estado de Publicación</CardTitle>
-                <CardDescription>Controla la visibilidad del espécimen</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="status">Estado actual</Label>
-                  <Select value={formData.status} onValueChange={(value) => handleInputChange('status', value)}>
-                    <SelectTrigger id="status">
-                      <SelectValue placeholder="Selecciona el estado" />
-                    </SelectTrigger>
+                <div className="mt-6 space-y-2">
+                  <Label htmlFor="photoRecord">Fotografía en Montaje</Label>
+                  <Select value={formData.photoRecord} onValueChange={v => handleInputChange('photoRecord', v)}>
+                    <SelectTrigger id="photoRecord"><SelectValue placeholder="¿Tiene fotografía en montaje?" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="draft">Borrador</SelectItem>
-                      <SelectItem value="review">En revisión</SelectItem>
-                      <SelectItem value="published">Publicado</SelectItem>
-                      <SelectItem value="deleted">Eliminado</SelectItem>
+                      <SelectItem value="si">Sí</SelectItem>
+                      <SelectItem value="no">No</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-start space-x-2">
-                    <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
-                    <div>
-                      <h4 className="text-sm font-medium text-blue-800">Estados disponibles:</h4>
-                      <ul className="text-sm text-blue-700 mt-1 space-y-1">
-                        <li><strong>Borrador:</strong> Solo visible para administradores</li>
-                        <li><strong>Pendiente:</strong> En revisión, no visible públicamente</li>
-                        <li><strong>Publicado:</strong> Visible para todos los visitantes</li>
-                        <li><strong>Archivado:</strong> No visible públicamente, conservado para historial</li>
-                      </ul>
+                {uploadedImages.length > 0 && (
+                  <div className="mt-4 p-4 bg-muted/30 rounded-lg">
+                    <h4 className="text-sm font-medium mb-2">Resumen de imágenes:</h4>
+                    <div className="space-y-1 text-sm text-muted-foreground">
+                      <p>📁 {uploadedImages.filter(i => !i.markedForDeletion).length} imagen(es) activa(s)</p>
+                      {uploadedImages.filter(img => img.isExisting && !img.markedForDeletion).length > 0 && (
+                        <p className="text-blue-600">🖼️ {uploadedImages.filter(img => img.isExisting && !img.markedForDeletion).length} ya guardada(s) en el servidor</p>
+                      )}
+                      {uploadedImages.filter(img => img.id && !img.isExisting).length > 0 && (
+                        <p className="text-green-600">✅ {uploadedImages.filter(img => img.id && !img.isExisting).length} nueva(s) subida(s) a Cloudinary</p>
+                      )}
+                      {uploadedImages.filter(img => img.isUploading).length > 0 && (
+                        <p className="text-blue-600">⏳ {uploadedImages.filter(img => img.isUploading).length} subiendo...</p>
+                      )}
+                      {uploadedImages.filter(img => img.markedForDeletion).length > 0 && (
+                        <p className="text-red-600">🗑️ {uploadedImages.filter(img => img.markedForDeletion).length} marcada(s) para eliminar</p>
+                      )}
                     </div>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
+
         </Tabs>
 
+        {/* ── Barra inferior de acciones ──────────────────────────────────── */}
         <div className="flex justify-between pt-6 border-t">
           <Button type="button" variant="outline" onClick={() => router.push('/admin/plantas')}>
             Cancelar
           </Button>
-          <Button 
-            type="submit" 
-            className="bg-green-600 hover:bg-green-700" 
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Actualizando...
-              </>
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                Guardar Cambios
-              </>
-            )}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isLoading}
+              onClick={e => handleSubmit(e as any, 'draft')}
+            >
+              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Guardar borrador
+            </Button>
+            <Button
+              type="submit"
+              className="bg-green-600 hover:bg-green-700"
+              disabled={isLoading || uploadedImages.some(img => img.isUploading)}
+            >
+              {isLoading ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>
+              ) : uploadedImages.some(img => img.isUploading) ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Esperando imágenes...</>
+              ) : (
+                <><Save className="mr-2 h-4 w-4" />Guardar cambios</>
+              )}
+            </Button>
+          </div>
         </div>
       </form>
     </div>

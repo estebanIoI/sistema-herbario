@@ -28,12 +28,25 @@ interface Plant {
   vernacular_name?: string
   family?: string
   genus?: string
+  specific_epithet?: string
   recorded_by?: string
   event_date?: string
   state_province?: string
+  county?: string        // municipio (Darwin Core)
+  municipality?: string  // vereda
+  locality?: string
+  habitat?: string
+  plant_habit?: string
+  decimal_latitude?: number
+  decimal_longitude?: number
+  featured?: boolean
   status: "published" | "draft" | "review" | "deleted"
   views?: number
   created_at: string
+  // Imagen principal (desde plant_images)
+  main_image_thumbnail?: string
+  main_image_url?: string
+  image_count?: number
 }
 
 interface PaginationData {
@@ -438,30 +451,28 @@ export default function AdminPlantas() {
   const toN   = Math.min(page * pagination.limit, pagination.total)
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5 p-1">
       {/* ── Cabecera ─────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Herbario</h1>
-          <p className="text-sm text-muted-foreground">
-            {pagination.total.toLocaleString()} especímenes registrados
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <BookOpen className="h-6 w-6 text-green-600" />
+            Herbario Digital
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Colección de especímenes botánicos — HEAA
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => { setImportOpen(true); resetImport() }}
-          >
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={() => { setImportOpen(true); resetImport() }}>
             <FileSpreadsheet className="h-4 w-4 mr-2" />
             Importar Excel
           </Button>
           <Button
-            variant="outline"
-            size="sm"
+            variant="outline" size="sm"
             className="text-orange-600 border-orange-200 hover:bg-orange-50"
             onClick={purgeDeletedLegacy}
-            title="Elimina permanentemente los registros con estado 'eliminado' que quedaron de versiones anteriores. Libera números de catálogo para reutilización."
+            title="Elimina permanentemente los registros con estado 'eliminado' heredados."
           >
             <DatabaseZap className="h-4 w-4 mr-2" />
             Limpiar eliminados
@@ -475,19 +486,34 @@ export default function AdminPlantas() {
         </div>
       </div>
 
+      {/* ── Tarjetas de estadísticas ─────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Total",       value: pagination.total,                                                   color: "text-foreground",   bg: "bg-background" },
+          { label: "Publicados",  value: plantas.filter(p => p.status === "published").length,               color: "text-green-700",    bg: "bg-green-50 dark:bg-green-950/30" },
+          { label: "Borradores",  value: plantas.filter(p => p.status === "draft").length,                   color: "text-amber-700",    bg: "bg-amber-50 dark:bg-amber-950/30" },
+          { label: "En revisión", value: plantas.filter(p => p.status === "review").length,                  color: "text-sky-700",      bg: "bg-sky-50 dark:bg-sky-950/30" },
+        ].map(s => (
+          <div key={s.label} className={`rounded-lg border px-4 py-3 ${s.bg}`}>
+            <div className={`text-2xl font-bold ${s.color}`}>{s.value.toLocaleString()}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
       {/* ── Filtros ───────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap gap-2">
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nombre, familia, colector…"
+            placeholder="Buscar por nombre, familia, colector, catálogo…"
             className="pl-8 h-9 text-sm"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="h-9 w-36 text-sm">
+          <SelectTrigger className="h-9 w-40 text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -505,7 +531,7 @@ export default function AdminPlantas() {
           <span className="font-medium">{selected.size} seleccionado(s)</span>
           <div className="flex gap-2 ml-2">
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={bulkPublish} disabled={bulkLoading}>
-              {bulkLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Publicar"}
+              {bulkLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Publicar todos"}
             </Button>
             <Button variant="outline" size="sm" className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50" onClick={bulkDelete} disabled={bulkLoading}>
               Eliminar
@@ -528,15 +554,24 @@ export default function AdminPlantas() {
                   onCheckedChange={toggleAll}
                 />
               </TableHead>
+              {/* Imagen */}
+              <TableHead className="w-14"></TableHead>
+              {/* Catálogo */}
               <TableHead className="w-28 text-xs font-medium">Catálogo</TableHead>
-              <TableHead className="text-xs font-medium">Nombre científico / Común</TableHead>
-              <TableHead className="text-xs font-medium w-36">Familia</TableHead>
-              <TableHead className="text-xs font-medium w-44">Colector</TableHead>
-              <TableHead className="text-xs font-medium w-32">Fecha col.</TableHead>
-              <TableHead className="text-xs font-medium w-28">Departamento</TableHead>
-              <TableHead className="text-xs font-medium w-24">Estado</TableHead>
-              <TableHead className="text-xs font-medium w-16 text-right pr-4">Vistas</TableHead>
-              <TableHead className="w-20 text-right pr-4"></TableHead>
+              {/* Espécimen */}
+              <TableHead className="text-xs font-medium">Espécimen</TableHead>
+              {/* Taxonomía */}
+              <TableHead className="text-xs font-medium w-40 hidden lg:table-cell">Familia / Género</TableHead>
+              {/* Colector + Fecha */}
+              <TableHead className="text-xs font-medium w-44 hidden md:table-cell">Colector</TableHead>
+              {/* Ubicación */}
+              <TableHead className="text-xs font-medium w-36 hidden xl:table-cell">Ubicación</TableHead>
+              {/* Hábitat / Hábito */}
+              <TableHead className="text-xs font-medium w-32 hidden xl:table-cell">Hábitat</TableHead>
+              {/* Estado */}
+              <TableHead className="text-xs font-medium w-28">Estado</TableHead>
+              {/* Acciones */}
+              <TableHead className="w-24 text-right pr-4"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -545,7 +580,7 @@ export default function AdminPlantas() {
                 <TableRow key={i}>
                   {Array.from({ length: 10 }).map((__, j) => (
                     <TableCell key={j}>
-                      <div className="h-3.5 bg-muted rounded animate-pulse" style={{ width: j === 2 ? "80%" : "60%" }} />
+                      <div className="h-3.5 bg-muted rounded animate-pulse" style={{ width: j === 3 ? "80%" : j === 1 ? "100%" : "60%" }} />
                     </TableCell>
                   ))}
                 </TableRow>
@@ -564,99 +599,159 @@ export default function AdminPlantas() {
               plantas.map(p => {
                 const s = STATUS_CFG[p.status] ?? STATUS_CFG.draft
                 return (
-                  <TableRow key={p.id} className="group hover:bg-muted/30">
-                    <TableCell className="pl-4 w-10">
-                      <Checkbox
-                        checked={selected.has(p.id)}
-                        onCheckedChange={() => toggleSelect(p.id)}
-                      />
+                  <TableRow key={p.id} className="group hover:bg-muted/30 cursor-pointer" onClick={() => openDetail(p.id)}>
+
+                    {/* Checkbox */}
+                    <TableCell className="pl-4 w-10" onClick={e => e.stopPropagation()}>
+                      <Checkbox checked={selected.has(p.id)} onCheckedChange={() => toggleSelect(p.id)} />
                     </TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {p.catalog_number ?? <span className="opacity-40">—</span>}
+
+                    {/* Imagen principal */}
+                    <TableCell className="w-14 py-2 px-2">
+                      <div className="relative w-10 h-10 rounded-md overflow-hidden border bg-muted flex-shrink-0">
+                        {p.main_image_thumbnail || p.main_image_url ? (
+                          <img
+                            src={p.main_image_thumbnail || p.main_image_url}
+                            alt={p.scientific_name}
+                            className="w-full h-full object-cover"
+                            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <ImageIcon className="h-4 w-4 text-muted-foreground/40" />
+                          </div>
+                        )}
+                        {(p.image_count ?? 0) > 1 && (
+                          <span className="absolute bottom-0 right-0 bg-black/60 text-white text-[9px] px-1 leading-4 rounded-tl">
+                            {p.image_count}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell>
-                      <p className="italic text-sm font-medium leading-tight">{p.scientific_name}</p>
+
+                    {/* Catálogo */}
+                    <TableCell className="font-mono text-xs text-muted-foreground py-2">
+                      {p.catalog_number
+                        ? <span className="bg-muted px-1.5 py-0.5 rounded text-xs">{p.catalog_number}</span>
+                        : <span className="opacity-30">—</span>
+                      }
+                    </TableCell>
+
+                    {/* Nombre científico + común + coordenadas si existen */}
+                    <TableCell className="py-2">
+                      <p className="italic text-sm font-semibold leading-tight text-foreground">
+                        {p.scientific_name}
+                      </p>
                       {(p.vernacular_name || p.common_name) && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
+                        <p className="text-xs text-muted-foreground mt-0.5 not-italic">
                           {p.vernacular_name || p.common_name}
                         </p>
                       )}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {p.family ?? <span className="opacity-40">—</span>}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground max-w-[11rem] truncate">
-                      {p.recorded_by ?? <span className="opacity-40">—</span>}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {fmtDate(p.event_date)}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {p.state_province ?? <span className="opacity-40">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      {p.status === "published" ? (
-                        <span className="inline-flex text-[11px] font-medium px-2 py-0.5 rounded-full border bg-green-100 text-green-700 border-green-200">
-                          Publicado
-                        </span>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-6 text-[11px] px-2 py-0 text-amber-700 border-amber-300 hover:bg-amber-50"
-                          onClick={() => publishPlant(p.id)}
-                        >
-                          Publicar
-                        </Button>
+                      {(p.decimal_latitude && p.decimal_longitude) && (
+                        <p className="text-[10px] text-muted-foreground/60 mt-0.5 flex items-center gap-0.5 font-mono">
+                          <MapPin className="h-2.5 w-2.5" />
+                          {Number(p.decimal_latitude).toFixed(4)}, {Number(p.decimal_longitude).toFixed(4)}
+                        </p>
                       )}
                     </TableCell>
-                    <TableCell className="text-right text-xs text-muted-foreground pr-4">
-                      {p.views ?? 0}
+
+                    {/* Familia / Género */}
+                    <TableCell className="py-2 hidden lg:table-cell">
+                      {p.family && (
+                        <p className="text-xs font-medium text-foreground">{p.family}</p>
+                      )}
+                      {p.genus && (
+                        <p className="text-xs italic text-muted-foreground mt-0.5">{p.genus}</p>
+                      )}
+                      {!p.family && !p.genus && <span className="text-xs opacity-30">—</span>}
                     </TableCell>
-                    <TableCell className="pr-2">
+
+                    {/* Colector + Fecha colección */}
+                    <TableCell className="py-2 hidden md:table-cell">
+                      {p.recorded_by && (
+                        <p className="text-xs text-foreground truncate max-w-[10rem]">{p.recorded_by}</p>
+                      )}
+                      {p.event_date && (
+                        <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                          <Calendar className="h-2.5 w-2.5" />
+                          {fmtDate(p.event_date)}
+                        </p>
+                      )}
+                      {!p.recorded_by && !p.event_date && <span className="text-xs opacity-30">—</span>}
+                    </TableCell>
+
+                    {/* Ubicación: Municipio · Departamento */}
+                    <TableCell className="py-2 hidden xl:table-cell">
+                      {p.county && (
+                        <p className="text-xs text-foreground">{p.county}</p>
+                      )}
+                      {p.state_province && (
+                        <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                          <MapPin className="h-2.5 w-2.5" />
+                          {p.state_province}
+                        </p>
+                      )}
+                      {!p.county && !p.state_province && <span className="text-xs opacity-30">—</span>}
+                    </TableCell>
+
+                    {/* Hábitat / Hábito */}
+                    <TableCell className="py-2 hidden xl:table-cell">
+                      {p.plant_habit && (
+                        <p className="text-xs font-medium text-foreground capitalize">{p.plant_habit}</p>
+                      )}
+                      {p.habitat && (
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[8rem]" title={p.habitat}>
+                          {p.habitat}
+                        </p>
+                      )}
+                      {!p.plant_habit && !p.habitat && <span className="text-xs opacity-30">—</span>}
+                    </TableCell>
+
+                    {/* Estado */}
+                    <TableCell className="py-2" onClick={e => e.stopPropagation()}>
+                      {p.status === "published" ? (
+                        <span className={`inline-flex text-[11px] font-medium px-2 py-0.5 rounded-full border ${s.cls}`}>
+                          {s.label}
+                        </span>
+                      ) : (
+                        <div className="flex flex-col gap-1">
+                          <span className={`inline-flex text-[11px] font-medium px-2 py-0.5 rounded-full border w-fit ${s.cls}`}>
+                            {s.label}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-5 text-[10px] px-1 py-0 text-green-700 hover:text-green-800 hover:bg-green-50 w-fit"
+                            onClick={() => publishPlant(p.id)}
+                          >
+                            <Globe className="h-2.5 w-2.5 mr-1" />
+                            Publicar
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
+
+                    {/* Acciones */}
+                    <TableCell className="pr-3 py-2" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => openDetail(p.id)}
-                          title="Ver detalles"
-                        >
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDetail(p.id)} title="Ver detalles">
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
                         <Link href={`/admin/plantas/${p.id}/editar`}>
-                          <Button variant="ghost" size="icon" className="h-7 w-7">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar">
                             <Edit2 className="h-3.5 w-3.5" />
                           </Button>
                         </Link>
                         {p.status === "published" ? (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-amber-600 hover:text-amber-700"
-                            onClick={() => unpublishPlant(p.id)}
-                            title="Despublicar"
-                          >
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600 hover:text-amber-700" onClick={() => unpublishPlant(p.id)} title="Despublicar">
                             <EyeOff className="h-3.5 w-3.5" />
                           </Button>
                         ) : (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-green-600 hover:text-green-700"
-                            onClick={() => publishPlant(p.id)}
-                            title="Publicar"
-                          >
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600 hover:text-green-700" onClick={() => publishPlant(p.id)} title="Publicar">
                             <Globe className="h-3.5 w-3.5" />
                           </Button>
                         )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-red-500 hover:text-red-600"
-                          onClick={() => deletePlant(p.id, p.scientific_name)}
-                          title="Eliminar"
-                        >
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-600" onClick={() => deletePlant(p.id, p.scientific_name)} title="Eliminar">
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
