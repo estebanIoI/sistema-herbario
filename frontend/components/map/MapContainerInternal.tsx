@@ -266,4 +266,31 @@ export default function MapContainerInternal({ plants, familyColorMap, onPlantCl
                     )}
 
                     {plant.plant_habit && (
-              
+                      <span className="popup-habit">
+                        🌿&nbsp;{plant.plant_habit}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Insignia de borrador */}
+                  {plant.status && plant.status !== 'published' && (
+                    <span className="popup-status-badge">
+                      {plant.status === 'draft' ? 'Borrador' : plant.status}
+                    </span>
+                  )}
+
+                  <button
+                    className="view-details"
+                    onClick={() => handlePlantClick(plant.id)}
+                  >
+                    Ver ficha completa →
+                  </button>
+                </div>
+              </Popup>
+            </Marker>
+          )
+        })}
+      </MarkerClusterGroup>
+    </MapContainer>
+  )
+}

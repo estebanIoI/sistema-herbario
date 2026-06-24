@@ -804,4 +804,14 @@ export default function PlantasPage() {
                 </div>
               )}
 
-           
+              {/* Información de resultados */}
+              <div className="text-center text-sm text-muted-foreground mt-4">
+                Mostrando {((currentPage - 1) * pagination.limit) + 1} - {Math.min(currentPage * pagination.limit, pagination.total)} de {pagination.total} plantas
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  )
+}

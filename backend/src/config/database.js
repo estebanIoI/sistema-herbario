@@ -115,3 +115,26 @@ const closePool = async () => {
 pool.on('connection', (connection) => {
   logger.debug(`🔗 Nueva conexión establecida: ${connection.threadId}`);
   // Establecer zona horaria de sesión → NOW() retorna hora de Colombia/Bogotá
+  connection.query("SET time_zone = '-05:00'", (err) => {
+    if (err) logger.error('Error al establecer time_zone de sesión:', err.message);
+  });
+});
+
+pool.on('error', (error) => {
+  logger.error('❌ Error en pool de conexiones MySQL:', error.message);
+  if (error.code === 'PROTOCOL_CONNECTION_LOST') {
+    logger.info('🔄 Reintentando conexión a MySQL...');
+  }
+});
+
+// Probar conexión al inicializar
+testConnection();
+
+module.exports = {
+  query,
+  transaction,
+  getStats,
+  closePool,
+  testConnection,
+  pool
+};

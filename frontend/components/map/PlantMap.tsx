@@ -124,4 +124,14 @@ export default function PlantMap({
               {legendEntries.map(e => (
                 <li key={e.family} className="legend-item">
                   <span className="legend-dot" style={{ background: e.color }} />
-                  <span className="legend-family">{e.family}<
+                  <span className="legend-family">{e.family}</span>
+                  <span className="legend-count">{e.count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

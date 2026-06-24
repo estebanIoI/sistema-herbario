@@ -248,4 +248,46 @@ const services = {
   // ===============================
   // SERVICIOS DE VALIDACIÓN
   // ===============================
-  'validation.chec
+  'validation.checkDuplicates': plantsController.checkDuplicates,
+  'validation.validatePlantData': plantsController.validatePlantData,
+  'validation.validateTaxonomy': taxonomyController.validateTaxonomy,
+  'validation.validateLocation': locationsController.validateLocation,
+};
+
+/**
+ * Obtener lista de todos los servicios disponibles
+ */
+const getAvailableServices = () => {
+  return Object.keys(services).sort();
+};
+
+/**
+ * Verificar si un servicio existe
+ */
+const serviceExists = (serviceName) => {
+  return services.hasOwnProperty(serviceName);
+};
+
+/**
+ * Obtener servicios por categoría
+ */
+const getServicesByCategory = () => {
+  const categories = {};
+  
+  Object.keys(services).forEach(serviceName => {
+    const category = serviceName.split('.')[0];
+    if (!categories[category]) {
+      categories[category] = [];
+    }
+    categories[category].push(serviceName);
+  });
+  
+  return categories;
+};
+
+module.exports = {
+  services,
+  getAvailableServices,
+  serviceExists,
+  getServicesByCategory
+};

@@ -235,4 +235,11 @@ const handleRequest = async (req, res) => {
       code: error.code,
       service: req.body.service,
       timestamp: new Date().toISOString()
-  
+    });
+  }
+};
+
+module.exports = {
+  handleRequest
+};
+

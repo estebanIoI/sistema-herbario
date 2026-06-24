@@ -156,4 +156,47 @@ const getAll = async (data) => {
     logger.info('Query de plantas:', plantsQuery);
     logger.info('Parámetros de consulta:', [...queryParams, parseInt(limit), parseInt(offset)]);
 
-    // Los parámetros para la consulta principal incluyen lo
+    // Los parámetros para la consulta principal incluyen los filtros + limit + offset
+    const plantsParams = [...queryParams, parseInt(limit), parseInt(offset)];
+    // Los parámetros para el conteo solo incluyen los filtros
+    const countParams = queryParams;
+
+    const [plants] = await db.query(plantsQuery, plantsParams);
+    const [totalResult] = await db.query(countQuery, countParams);
+    
+    const total = totalResult[0].total;
+    const totalPages = Math.ceil(total / limit);
+
+    // Procesar las plantas — nombres Darwin Core, sin alias
+    const processedPlants = plants.map(plant => ({
+      ...plant,
+      imageUrls: plant.main_image_url ? [plant.main_image_url] : [],
+      main_image_thumbnail: plant.main_image_thumbnail || plant.main_image_url || null,
+      main_image_url: plant.main_image_url || null,
+      image_count: Number(plant.image_count) || 0,
+      vernacular_name: plant.vernacular_name || plant.common_name || null,
+      decimal_latitude: plant.decimal_latitude != null ? parseFloat(plant.decimal_latitude) : null,
+      decimal_longitude: plant.decimal_longitude != null ? parseFloat(plant.decimal_longitude) : null
+    }));
+
+    logger.info(`Consulta de plantas completada - Página: ${page}, Total: ${total}, Resultados: ${processedPlants.length}`);
+
+    return {
+      plants: processedPlants,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      }
+    };
+
+  } catch (error) {
+    logger.error('Error al obtener plantas:', error);
+    throw error;
+  }
+};
+
+module.exports = getAll;

@@ -101,4 +101,25 @@ const getAll = async (data, user) => {
       admin_response:        s.admin_response || null,
       responded_at:          s.responded_at ? new Date(s.responded_at).toISOString() : null,
       responded_by_name:     s.responded_by_name || null,
-      responded_by_email:    s.respond
+      responded_by_email:    s.responded_by_email || null,
+    };
+  });
+
+  const totalPages = Math.ceil(total / limit);
+  logger.info(`Sugerencias consultadas — total: ${total}, estado: ${status}`);
+
+  return {
+    suggestions: formatted,
+    pagination: {
+      page:       parseInt(page),
+      limit:      parseInt(limit),
+      total,
+      totalPages,
+      hasNext:    page < totalPages,
+      hasPrev:    page > 1,
+    },
+    summary: { total, ...counts },
+  };
+};
+
+module.exports = getAll;

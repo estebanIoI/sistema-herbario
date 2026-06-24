@@ -89,4 +89,102 @@ export default function UsuariosPage() {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001"}/api/service`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        bo
+        body: JSON.stringify({
+          service: "users.getAll",
+          token: apiService.getToken(),
+          data: {
+            page, limit,
+            search: search || undefined,
+            role:   (activeFilters.role   && activeFilters.role   !== "all") ? activeFilters.role   : undefined,
+            status: (activeFilters.status && activeFilters.status !== "all") ? activeFilters.status : undefined,
+            sortBy: sort?.id, sortDir: sort?.dir,
+          },
+        }),
+      })
+      const json = await res.json()
+      if (json.success) {
+        const rows = Array.isArray(json.data) ? json.data : json.data?.users ?? []
+        setData(rows)
+        setTotal(json.data?.total ?? json.data?.pagination?.total ?? rows.length)
+      } else {
+        setError(json.error ?? "Error al cargar usuarios")
+      }
+    } catch { setError("Error de conexión") }
+    finally { setLoading(false) }
+  }, [page, limit, search, sort, activeFilters])
+
+  useEffect(() => { load() }, [load])
+
+  const setFilter = (id: string, value: string) => {
+    setAF(prev => ({ ...prev, [id]: value }))
+    setPage(1)
+  }
+
+  const activos    = data.filter(u => u.status === "active").length
+  const admins     = data.filter(u => u.role === "admin").length
+  const collectors = data.filter(u => u.role === "collector").length
+
+  return (
+    <div className="space-y-5 p-1">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+          <Users className="h-6 w-6 text-blue-600" />Usuarios
+        </h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Gestión de cuentas del sistema</p>
+      </div>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Total",      value: total,      bg: "bg-background" },
+          { label: "Activos",    value: activos,    bg: "bg-green-50 dark:bg-green-950/30" },
+          { label: "Admins",     value: admins,     bg: "bg-purple-50 dark:bg-purple-950/30" },
+          { label: "Colectores", value: collectors, bg: "bg-blue-50 dark:bg-blue-950/30" },
+        ].map(s => (
+          <div key={s.label} className={`rounded-lg border px-4 py-3 ${s.bg}`}>
+            <div className="text-2xl font-bold">{s.value}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <DataTable<User>
+        data={data} columns={COLUMNS} getRowId={u => u.id}
+        loading={loading} error={error ?? undefined}
+        pagination={{ page, limit, total, onPageChange: setPage, onLimitChange: p => { setLimit(p); setPage(1) } }}
+        search={search} onSearchChange={v => { setSearch(v); setPage(1) }}
+        searchPlaceholder="Buscar por nombre o email…"
+        sort={sort} onSortChange={setSort}
+        filters={FILTERS} activeFilters={activeFilters} onFilterChange={setFilter}
+        onRowClick={setDetail}
+        emptyIcon={<UserX className="h-8 w-8 opacity-40" />}
+        emptyTitle="Sin usuarios" emptyDescription="No hay usuarios registrados aún."
+      />
+
+      <Dialog open={!!detail} onOpenChange={o => { if (!o) setDetail(null) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserCheck className="h-4 w-4" />{detail?.name}
+            </DialogTitle>
+            <DialogDescription>{detail?.email}</DialogDescription>
+          </DialogHeader>
+          {detail && (
+            <div className="space-y-3 text-sm">
+              {[
+                { label: "Rol",        value: <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium border ${ROLE_CFG[detail.role]?.cls}`}>{ROLE_CFG[detail.role]?.label}</span> },
+                { label: "Estado",     value: <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium border ${STATUS_CFG[detail.status]?.cls}`}>{STATUS_CFG[detail.status]?.label}</span> },
+                { label: "Registrado", value: fmtDate(detail.created_at) },
+              ].map(r => (
+                <div key={r.label} className="flex items-center justify-between">
+                  <span className="text-muted-foreground">{r.label}</span>
+                  <span>{r.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}

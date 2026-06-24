@@ -966,4 +966,76 @@ class ApiService {
     anonimo?: boolean;
     nombre?: string;
     tipo_identificacion?: string;
-    num
+    numero_documento?: string;
+    direccion_correspondencia?: string;
+    medio_respuesta?: string;
+    telefono?: string;
+    pais?: string;
+    departamento?: string;
+    ciudad?: string;
+    email?: string;
+    fax?: string;
+    mensaje: string;
+    autoriza: boolean;
+  }): Promise<ApiResponse<{ radicado: string; tipo: string; fechaRadicacion: string; tiempoRespuesta: string; message: string }>> {
+    return this.fetchApi('pqrsdf.create', {
+      body: JSON.stringify(data)
+    });
+  }
+
+  async getPqrsdf(params: { tipo?: string; status?: string; page?: number; limit?: number } = {}): Promise<ApiResponse<{
+    pqrsdf: any[];
+    total: number;
+    page: number;
+    pages: number;
+  }>> {
+    const token = this.getToken();
+    return this.fetchApi('pqrsdf.getAll', {
+      body: JSON.stringify(params),
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  async updatePqrsdfStatus(id: number, status: 'pendiente' | 'en_revision' | 'respondido'): Promise<ApiResponse<any>> {
+    const token = this.getToken();
+    return this.fetchApi('pqrsdf.updateStatus', {
+      body: JSON.stringify({ id, status }),
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  async getPqrsdfById(id: number): Promise<ApiResponse<{ pqrsdf: any; history: any[] }>> {
+    const token = this.getToken();
+    return this.fetchApi('pqrsdf.getById', {
+      body: JSON.stringify({ id }),
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  async respondToPqrsdf(id: number, respuesta: string): Promise<ApiResponse<any>> {
+    const token = this.getToken();
+    return this.fetchApi('pqrsdf.respond', {
+      body: JSON.stringify({ id, respuesta }),
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  async respondToSuggestion(id: number, admin_response: string): Promise<ApiResponse<any>> {
+    const token = this.getToken();
+    return this.fetchApi('suggestions.respond', {
+      body: JSON.stringify({ id, admin_response }),
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  // Eliminar imagen
+  async deleteImage(imageId: number): Promise<ApiResponse> {
+    return this.fetchApi('uploads.deleteImage', {
+      body: JSON.stringify({ imageId })
+    });
+  }
+}
+
+export const apiService = new ApiService();
+export type { User, AuthResponse, ApiResponse, LoginData, RegisterData };
+export default ApiService;

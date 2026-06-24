@@ -1151,4 +1151,427 @@ export default function EditarPlantaPage() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-1">
                       <Label htmlFor="decimalLatitude" className="text-xs text-muted-foreground">Latitud decimal</Label>
-   
+                      <Input id="decimalLatitude" placeholder="Ej. 1.0934 (neg = Sur)"
+                        value={formData.decimalLatitude} onChange={e => handleInputChange('decimalLatitude', e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="decimalLongitude" className="text-xs text-muted-foreground">Longitud decimal</Label>
+                      <Input id="decimalLongitude" placeholder="Ej. -76.7333 (neg = Oeste)"
+                        value={formData.decimalLongitude} onChange={e => handleInputChange('decimalLongitude', e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="geodetic">Datum geodésico</Label>
+                    <Input id="geodetic" placeholder="Ej. WGS84"
+                      value={formData.geodetic} onChange={e => handleInputChange('geodetic', e.target.value)} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── TAB 4: TAXONOMÍA ─────────────────────────────────────────── */}
+          <TabsContent value="taxonomia" className="space-y-6 mt-6">
+
+            {/* Determinación */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Determinación e Identificación</CardTitle>
+                <CardDescription>Datos de quien identificó el espécimen y confirmó la determinación</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="identifiedBy">Identificado por</Label>
+                    <Input id="identifiedBy" placeholder="Ej. Andrés Orejuela"
+                      value={formData.identifiedBy} onChange={e => handleInputChange('identifiedBy', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="dateIdentified">Fecha de identificación</Label>
+                    <Input id="dateIdentified" type="date"
+                      value={formData.dateIdentified} onChange={e => handleInputChange('dateIdentified', e.target.value)} />
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="updatedBy">Actualizado/Confirmado por</Label>
+                    <Input id="updatedBy" placeholder="Nombre de quien actualizó o confirmó"
+                      value={formData.updatedBy} onChange={e => handleInputChange('updatedBy', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="dateUpdated">Fecha de actualización/Confirmación</Label>
+                    <Input id="dateUpdated" type="date"
+                      value={formData.dateUpdated} onChange={e => handleInputChange('dateUpdated', e.target.value)} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="project">Proyecto</Label>
+                  <Input id="project"
+                    placeholder="Ej. Diversidad de la familia Solanaceae a lo largo del gradiente altitudinal Mocoa - San Francisco"
+                    value={formData.project} onChange={e => handleInputChange('project', e.target.value)} />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Taxonomía */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Información Taxonómica</CardTitle>
+                <CardDescription>Clasificación taxonómica del espécimen</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="scientificName">Nombre científico *</Label>
+                    <div className="flex gap-2">
+                      <Input id="scientificName" placeholder="Ej. Solanum abiaguense" required
+                        value={formData.scientificName} onChange={e => handleInputChange('scientificName', e.target.value)} />
+                      <Button type="button" variant="outline" size="sm" onClick={fetchGbifTaxonomy}
+                        disabled={gbifLoading || !formData.scientificName.trim()}
+                        title="Consultar GBIF y rellenar familia, orden, clase, filo y autoría automáticamente">
+                        {gbifLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Escribe el nombre y presiona ✨ para autocompletar taxonomía desde GBIF</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="scientificNameAuthorship">Autoría del nombre científico</Label>
+                    <Input id="scientificNameAuthorship" placeholder="Se rellena automáticamente con GBIF"
+                      value={formData.scientificNameAuthorship} onChange={e => handleInputChange('scientificNameAuthorship', e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="kingdom">Reino</Label>
+                    <Input id="kingdom" placeholder="Ej. Plantae"
+                      value={formData.kingdom} onChange={e => handleInputChange('kingdom', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phylum">Filo</Label>
+                    <Input id="phylum" placeholder="Ej. Magnoliophyta"
+                      value={formData.phylum} onChange={e => handleInputChange('phylum', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="class">Clase</Label>
+                    <Input id="class" placeholder="Ej. Equisetopsida"
+                      value={formData.class} onChange={e => handleInputChange('class', e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="orderName">Orden</Label>
+                    <Input id="orderName" placeholder="Se rellena con GBIF ✨"
+                      value={formData.orderName} onChange={e => handleInputChange('orderName', e.target.value)} />
+                  </div>
+                  <div className="space-y-2 relative">
+                    <Label htmlFor="family">Familia *</Label>
+                    <Input id="family" placeholder="Ej. Solanaceae" required autoComplete="off"
+                      value={formData.family}
+                      onChange={e => handleAutocomplete('family', e.target.value, 'family')}
+                      onBlur={() => setTimeout(() => setAcOpen(p => ({ ...p, family: false })), 150)} />
+                    {acOpen['family'] && acSuggestions['family']?.length > 0 && (
+                      <div className="absolute z-50 w-full rounded-md border bg-background shadow-lg top-[64px]">
+                        {acSuggestions['family'].map(s => (
+                          <button key={s.id} type="button" onMouseDown={() => pickSuggestion('family', s.value)}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted border-b last:border-0">{s.label}</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="subfamily">Subfamilia</Label>
+                    <Input id="subfamily" placeholder="Subfamilia (opcional)"
+                      value={formData.subfamily} onChange={e => handleInputChange('subfamily', e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2 relative">
+                    <Label htmlFor="genus">Género *</Label>
+                    <Input id="genus" placeholder="Ej. Solanum" required autoComplete="off"
+                      value={formData.genus}
+                      onChange={e => handleAutocomplete('genus', e.target.value, 'scientific')}
+                      onBlur={() => setTimeout(() => setAcOpen(p => ({ ...p, genus: false })), 150)} />
+                    {acOpen['genus'] && acSuggestions['genus']?.length > 0 && (
+                      <div className="absolute z-50 w-full rounded-md border bg-background shadow-lg top-[64px]">
+                        {acSuggestions['genus'].map(s => (
+                          <button key={s.id} type="button" onMouseDown={() => pickSuggestion('genus', s.value)}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted border-b last:border-0">{s.label}</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="subgenus">Subgénero</Label>
+                    <Input id="subgenus" placeholder="Subgénero (opcional)"
+                      value={formData.subgenus} onChange={e => handleInputChange('subgenus', e.target.value)} />
+                  </div>
+                  <div className="space-y-2 relative">
+                    <Label htmlFor="specificEpithet">Epíteto específico *</Label>
+                    <Input id="specificEpithet" placeholder="Ej. abiaguense" required autoComplete="off"
+                      value={formData.specificEpithet}
+                      onChange={e => handleAutocomplete('specificEpithet', e.target.value, 'scientific')}
+                      onBlur={() => setTimeout(() => setAcOpen(p => ({ ...p, specificEpithet: false })), 150)} />
+                    {acOpen['specificEpithet'] && acSuggestions['specificEpithet']?.length > 0 && (
+                      <div className="absolute z-50 w-full rounded-md border bg-background shadow-lg top-[64px]">
+                        {acSuggestions['specificEpithet'].map(s => (
+                          <button key={s.id} type="button" onMouseDown={() => pickSuggestion('specificEpithet', s.value)}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted border-b last:border-0">{s.label}</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="infraspecificEpithet">Epíteto infraespecífico</Label>
+                    <Input id="infraspecificEpithet" placeholder="Opcional"
+                      value={formData.infraspecificEpithet} onChange={e => handleInputChange('infraspecificEpithet', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="taxonRank">Categoría del taxón</Label>
+                    <Select value={formData.taxonRank} onValueChange={v => handleInputChange('taxonRank', v)}>
+                      <SelectTrigger id="taxonRank"><SelectValue placeholder="Selecciona una categoría" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="species">Especie</SelectItem>
+                        <SelectItem value="subspecies">Subespecie</SelectItem>
+                        <SelectItem value="variety">Variedad</SelectItem>
+                        <SelectItem value="form">Forma</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="vernacularName">Nombre común</Label>
+                    <Input id="vernacularName" placeholder="Nombre común (opcional)"
+                      value={formData.vernacularName} onChange={e => handleInputChange('vernacularName', e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="taxonRemarks">Comentarios del taxón</Label>
+                  <Textarea id="taxonRemarks" rows={3} placeholder="Comentarios adicionales sobre el taxón..."
+                    value={formData.taxonRemarks} onChange={e => handleInputChange('taxonRemarks', e.target.value)} />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── TAB 5: CARACTERÍSTICAS ───────────────────────────────────── */}
+          <TabsContent value="caracteristicas" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Características del Espécimen</CardTitle>
+                <CardDescription>Descripción morfológica y ecológica detallada</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="description">Descripción general</Label>
+                  <Textarea id="description" rows={4} placeholder="Descripción detallada del espécimen..."
+                    value={formData.description} onChange={e => handleInputChange('description', e.target.value)} />
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="plantHeight">Altura de la planta (m)</Label>
+                    <Input id="plantHeight" type="number" step="0.1" placeholder="Ej. 5.0"
+                      value={formData.plantHeight} onChange={e => handleInputChange('plantHeight', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="plantHabit">Hábito de crecimiento</Label>
+                    <Select value={formData.plantHabit} onValueChange={v => handleInputChange('plantHabit', v)}>
+                      <SelectTrigger id="plantHabit"><SelectValue placeholder="Selecciona un hábito" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="arbol">Árbol</SelectItem>
+                        <SelectItem value="arbusto">Arbusto</SelectItem>
+                        <SelectItem value="hierba">Hierba</SelectItem>
+                        <SelectItem value="trepadora">Trepadora</SelectItem>
+                        <SelectItem value="epifita">Epífita</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="flowerColor">Color de la flor</Label>
+                    <Input id="flowerColor" placeholder="Ej. Corola blanca, anteras amarillas"
+                      value={formData.flowerColor} onChange={e => handleInputChange('flowerColor', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="fruitColor">Color del fruto</Label>
+                    <Input id="fruitColor" placeholder="Color del fruto (si aplica)"
+                      value={formData.fruitColor} onChange={e => handleInputChange('fruitColor', e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="leafCharacteristics">Características de las hojas</Label>
+                    <Textarea id="leafCharacteristics" rows={3} placeholder="Descripción de las hojas..."
+                      value={formData.leafCharacteristics} onChange={e => handleInputChange('leafCharacteristics', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="uses">Usos</Label>
+                    <Textarea id="uses" rows={3} placeholder="Usos tradicionales o conocidos..."
+                      value={formData.uses} onChange={e => handleInputChange('uses', e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="additionalRemarks">Observaciones adicionales</Label>
+                  <Textarea id="additionalRemarks" rows={3} placeholder="Cualquier otra información relevante..."
+                    value={formData.additionalRemarks} onChange={e => handleInputChange('additionalRemarks', e.target.value)} />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── TAB 6: IMÁGENES ─────────────────────────────────────────── */}
+          <TabsContent value="imagenes" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Imágenes del Espécimen</CardTitle>
+                <CardDescription>Fotografías y documentación visual (se almacenan en Cloudinary)</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-5">
+                  <div
+                    className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-12 text-center transition-colors ${isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'}`}
+                    onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
+                  >
+                    <div className="mb-4 rounded-full bg-primary/10 p-3">
+                      <Upload className="h-6 w-6 text-primary" />
+                    </div>
+                    <h3 className="mb-1 text-lg font-semibold">Arrastra y suelta imágenes</h3>
+                    <p className="mb-4 text-sm text-muted-foreground">O haz clic para seleccionar archivos</p>
+                    <Button variant="outline" size="sm" type="button"
+                      onClick={() => document.getElementById('file-input-edit')?.click()}>
+                      Seleccionar archivos
+                    </Button>
+                    <input id="file-input-edit" type="file" multiple accept="image/*" onChange={handleFileSelect} className="hidden" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+                    {uploadedImages.map((image, index) => (
+                      <div key={index}
+                        className={`relative aspect-square rounded-md border overflow-hidden ${image.markedForDeletion ? 'opacity-40' : 'bg-muted'}`}>
+                        {image.isUploading ? (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                            <Loader2 className="h-6 w-6 text-white animate-spin" />
+                          </div>
+                        ) : (
+                          <>
+                            <img src={image.url} alt={image.originalName} className="w-full h-full object-cover" />
+                            {image.markedForDeletion ? (
+                              <Button variant="outline" size="sm" type="button"
+                                className="absolute inset-x-1 bottom-1 h-6 text-xs"
+                                onClick={() => restoreImage(index)}>
+                                Restaurar
+                              </Button>
+                            ) : (
+                              <Button variant="destructive" size="icon" type="button"
+                                className="absolute right-1 top-1 h-6 w-6" onClick={() => removeImage(index)}>
+                                <X className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {image.isExisting && !image.markedForDeletion && (
+                              <div className="absolute bottom-1 left-1 bg-blue-500 text-white rounded-full px-1.5 py-0.5 text-[10px]">
+                                Guardada
+                              </div>
+                            )}
+                            {image.id && !image.isExisting && !image.isUploading && !image.uploadFailed && (
+                              <div className="absolute bottom-1 right-1 bg-green-500 text-white rounded-full p-1">
+                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    ))}
+                    <div className="flex aspect-square items-center justify-center rounded-md border border-dashed cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => document.getElementById('file-input-edit')?.click()}>
+                      <Button variant="ghost" size="icon" type="button"><Plus className="h-4 w-4" /></Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 space-y-2">
+                  <Label htmlFor="photoRecord">Fotografía en Montaje</Label>
+                  <Select value={formData.photoRecord} onValueChange={v => handleInputChange('photoRecord', v)}>
+                    <SelectTrigger id="photoRecord"><SelectValue placeholder="¿Tiene fotografía en montaje?" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="si">Sí</SelectItem>
+                      <SelectItem value="no">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {uploadedImages.length > 0 && (
+                  <div className="mt-4 p-4 bg-muted/30 rounded-lg">
+                    <h4 className="text-sm font-medium mb-2">Resumen de imágenes:</h4>
+                    <div className="space-y-1 text-sm text-muted-foreground">
+                      <p>📁 {uploadedImages.filter(i => !i.markedForDeletion).length} imagen(es) activa(s)</p>
+                      {uploadedImages.filter(img => img.isExisting && !img.markedForDeletion).length > 0 && (
+                        <p className="text-blue-600">🖼️ {uploadedImages.filter(img => img.isExisting && !img.markedForDeletion).length} ya guardada(s) en el servidor</p>
+                      )}
+                      {uploadedImages.filter(img => img.id && !img.isExisting).length > 0 && (
+                        <p className="text-green-600">✅ {uploadedImages.filter(img => img.id && !img.isExisting).length} nueva(s) subida(s) a Cloudinary</p>
+                      )}
+                      {uploadedImages.filter(img => img.isUploading).length > 0 && (
+                        <p className="text-blue-600">⏳ {uploadedImages.filter(img => img.isUploading).length} subiendo...</p>
+                      )}
+                      {uploadedImages.filter(img => img.markedForDeletion).length > 0 && (
+                        <p className="text-red-600">🗑️ {uploadedImages.filter(img => img.markedForDeletion).length} marcada(s) para eliminar</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+        </Tabs>
+
+        {/* ── Barra inferior de acciones ──────────────────────────────────── */}
+        <div className="flex justify-between pt-6 border-t">
+          <Button type="button" variant="outline" onClick={() => router.push('/admin/plantas')}>
+            Cancelar
+          </Button>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isLoading}
+              onClick={e => handleSubmit(e as any, 'draft')}
+            >
+              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Guardar borrador
+            </Button>
+            <Button
+              type="submit"
+              className="bg-green-600 hover:bg-green-700"
+              disabled={isLoading || uploadedImages.some(img => img.isUploading)}
+            >
+              {isLoading ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>
+              ) : uploadedImages.some(img => img.isUploading) ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Esperando imágenes...</>
+              ) : (
+                <><Save className="mr-2 h-4 w-4" />Guardar cambios</>
+              )}
+            </Button>
+          </div>
+        </div>
+      </form>
+    </div>
+  )
+}

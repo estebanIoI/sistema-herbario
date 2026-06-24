@@ -211,4 +211,81 @@ const getStats = async (data, user) => {
       return rows;
     }, []);
 
-    // ── Sugerencias ───────────────────────────────────────────────�
+    // ── Sugerencias ────────────────────────────────────────────────────────────
+    const suggestionsStats = await safeQuery(async () => {
+      const [byStatus] = await db.query(
+        `SELECT status, COUNT(*) AS count FROM suggestions GROUP BY status`
+      );
+      const [byType] = await db.query(
+        `SELECT type, COUNT(*) AS count FROM suggestions GROUP BY type ORDER BY count DESC`
+      );
+      const [[totRow]] = await db.query(`SELECT COUNT(*) AS total FROM suggestions`);
+      const [[pendRow]] = await db.query(`SELECT COUNT(*) AS total FROM suggestions WHERE status = 'pending'`);
+      const [[thisMonth]] = await db.query(`
+        SELECT COUNT(*) AS total FROM suggestions
+        WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())
+      `);
+      return {
+        total: Number(totRow.total),
+        pending: Number(pendRow.total),
+        thisMonth: Number(thisMonth.total),
+        byStatus,
+        byType,
+      };
+    }, { total: 0, pending: 0, thisMonth: 0, byStatus: [], byType: [] });
+
+    // ── PQRSDF ────────────────────────────────────────────────────────────────
+    const pqrsdfStats = await safeQuery(async () => {
+      const [byStatus] = await db.query(
+        `SELECT status, COUNT(*) AS count FROM pqrsdf GROUP BY status ORDER BY count DESC`
+      );
+      const [byTipo] = await db.query(
+        `SELECT tipo, COUNT(*) AS count FROM pqrsdf GROUP BY tipo ORDER BY count DESC`
+      );
+      const [[totRow]] = await db.query(`SELECT COUNT(*) AS total FROM pqrsdf`);
+      const [[pendRow]] = await db.query(`SELECT COUNT(*) AS total FROM pqrsdf WHERE status = 'pendiente'`);
+      const [[thisMonth]] = await db.query(`
+        SELECT COUNT(*) AS total FROM pqrsdf
+        WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())
+      `);
+      return {
+        total: Number(totRow.total),
+        pending: Number(pendRow.total),
+        thisMonth: Number(thisMonth.total),
+        byStatus,
+        byTipo,
+      };
+    }, { total: 0, pending: 0, thisMonth: 0, byStatus: [], byTipo: [] });
+
+    logger.info(`Estadísticas del dashboard consultadas por ${user.email}`);
+
+    return {
+      overview: {
+        totalPlants,
+        totalUsers,
+        totalViews,
+        plantsThisMonth,
+        usersThisMonth,
+        usersGrowth,
+        visitsThisMonth,
+        visitsGrowth,
+        avgSessionTime
+      },
+      distributions: {
+        topFamilies, topDepartments, topCollectors,
+        habitatStats, conservationStats, elevationStats,
+        plantsByStatus,
+      },
+      trends: { yearlyStats, monthlyStats },
+      recentActivity,
+      suggestionsStats,
+      pqrsdfStats,
+    };
+
+  } catch (error) {
+    logger.error('Error al obtener estadísticas del dashboard:', error);
+    throw error;
+  }
+};
+
+module.exports = getStats;

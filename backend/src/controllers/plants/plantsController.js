@@ -1180,4 +1180,57 @@ const importData = async (data, user) => {
  * de versiones anteriores del sistema. Elimina también sus imágenes.
  */
 const purgeDeleted = async (data, user) => {
-  const [rows] = await db.query('SELECT id FROM plants WHERE status 
+  const [rows] = await db.query('SELECT id FROM plants WHERE status = ?', ['deleted']);
+  if (rows.length === 0) return { purged: 0, message: 'No hay registros eliminados que limpiar.' };
+  const ids = rows.map(r => r.id);
+  await db.query('DELETE FROM plant_images WHERE plant_id IN (?)', [ids]);
+  await db.query('DELETE FROM plants WHERE id IN (?)', [ids]);
+  logger.info(`Purgados ${ids.length} registros soft-deleted por usuario ID ${user?.id}`);
+  return { purged: ids.length, message: `${ids.length} registro(s) eliminado(s) permanentemente.` };
+};
+
+module.exports = {
+  getAll,
+  getById,
+  create,
+  update,
+  delete: deletePlant,
+  purgeDeleted,
+  importData,
+  getFeaturedPlants,
+  getFeaturedPlantsData,
+  getFilterOptions,
+  getCollections,
+  getCollectors,
+  advancedSearch,
+  getStats,
+  // Aliases para compatibilidad
+  bulkDelete: deletePlant,
+  search: advancedSearch,
+  searchByFamily: advancedSearch,
+  searchByGenus: advancedSearch,
+  searchByLocation: advancedSearch,
+  searchByCollector: advancedSearch,
+  getRandomPlants: getFeaturedPlants,
+  getRecent: getAll,
+  getMostViewed: async (data) => {
+    const limit = Math.min(parseInt(data?.limit || 5), 50);
+    const [plants] = await db.query(
+      `SELECT id, scientific_name, common_name, COALESCE(views, 0) AS views
+       FROM plants
+       ORDER BY views DESC LIMIT ?`,
+      [limit]
+    );
+    return plants;
+  },
+  getByStatus: getAll,
+  uploadImage: async () => ({ success: false, error: 'Usar servicio uploads.uploadFile' }),
+  deleteImage: async () => ({ success: false, error: 'Usar servicio uploads.deleteFile' }),
+  getImages: async () => ({ success: false, error: 'Incluido en getById' }),
+  setMainImage: async () => ({ success: false, error: 'Usar servicio uploads.setMainImage' }),
+  exportData,
+  getExportFormats,
+  checkDuplicates: async () => ({ success: false, error: 'Funcionalidad pendiente' }),
+  validatePlantData: async () => ({ success: false, error: 'Funcionalidad pendiente' }),
+  getFieldValues: getFilterOptions
+};

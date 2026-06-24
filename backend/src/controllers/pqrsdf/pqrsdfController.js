@@ -229,4 +229,15 @@ const getById = async (data, user) => {
   if (!rows.length) throw new Error('Solicitud no encontrada');
 
   const [logs] = await db.query(
- 
+    `SELECT al.action, al.description, al.created_at, u.name AS user_name
+     FROM activity_logs al
+     LEFT JOIN users u ON u.id = al.user_id
+     WHERE al.entity_type = 'pqrsdf' AND al.entity_id = ?
+     ORDER BY al.created_at ASC`,
+    [id]
+  );
+
+  return { pqrsdf: rows[0], history: logs };
+};
+
+module.exports = { create, getAll, updateStatus, respond, getById };
