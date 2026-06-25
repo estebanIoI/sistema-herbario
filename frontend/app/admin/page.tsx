@@ -37,8 +37,8 @@ const T_PLANT_STATUS: Record<string, string> = {
 }
 
 // ── Colores ────────────────────────────────────────────────────────────────
-const C_GREEN  = ["#16a34a", "#22c55e", "#4ade80", "#86efac", "#bbf7d0"]
-const C_BLUE   = ["#1d4ed8", "#3b82f6", "#60a5fa", "#93c5fd", "#bfdbfe"]
+const C_GREEN  = ["#2E5E38", "#4a7d4f", "#7BA66C", "#A7C99A", "#cfe2c2"]
+const C_BLUE   = ["#2E5E38", "#3f7a59", "#5e9b78", "#7BA66C", "#a7c99a"]
 const C_SUGG: Record<string, string> = {
   pending: "#f59e0b", in_review: "#3b82f6", approved: "#16a34a",
   rejected: "#ef4444", implemented: "#8b5cf6",
@@ -104,35 +104,35 @@ function KpiCard({
   sub?: string; trend?: "up" | "down" | "neutral"; color: string
   href?: string; loading?: boolean
 }) {
-  const bgMap: Record<string, string> = {
-    green: "bg-green-50 dark:bg-green-950/30 border-green-100 dark:border-green-900/40",
-    blue:  "bg-blue-50 dark:bg-blue-950/30 border-blue-100 dark:border-blue-900/40",
-    amber: "bg-amber-50 dark:bg-amber-950/30 border-amber-100 dark:border-amber-900/40",
-    red:   "bg-red-50 dark:bg-red-950/30 border-red-100 dark:border-red-900/40",
+  const accentMap: Record<string, string> = {
+    green: "#2E5E38", blue: "#3b7ea1", amber: "#c98a2e", red: "#c0492f",
   }
-  const iconMap: Record<string, string> = {
-    green: "text-green-600", blue: "text-blue-600", amber: "text-amber-500", red: "text-red-500",
-  }
+  const accent = accentMap[color] ?? "#2E5E38"
   const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus
   const trendColor = trend === "up" ? "text-green-600" : trend === "down" ? "text-red-500" : "text-muted-foreground"
 
   const inner = (
-    <Card className={`${bgMap[color]} shadow-sm transition-all hover:shadow-md ${href ? "cursor-pointer hover:-translate-y-0.5" : ""}`}>
-      <CardContent className="p-4">
+    <Card className={`relative overflow-hidden transition-all hover:shadow-lg ${href ? "cursor-pointer hover:-translate-y-1" : ""}`}>
+      {/* Filo de acento botánico */}
+      <span className="absolute inset-x-0 top-0 h-1" style={{ background: `linear-gradient(90deg, ${accent}, transparent)` }} />
+      <CardContent className="p-5">
         <div className="flex items-start justify-between gap-2">
-          <div className={`p-2 rounded-lg bg-white/60 dark:bg-black/20 ${iconMap[color]}`}>{icon}</div>
+          <div
+            className="p-2.5 rounded-2xl"
+            style={{ background: `${accent}1f`, color: accent }}
+          >{icon}</div>
           {trend && <TrendIcon className={`h-4 w-4 mt-1 ${trendColor}`} />}
         </div>
-        <div className="mt-3">
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{label}</p>
+        <div className="mt-4">
+          <p className="text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--bot-ink-soft)" }}>{label}</p>
           {loading
             ? <div className="h-8 w-24 bg-muted animate-pulse rounded mt-1" />
-            : <p className="text-3xl font-bold mt-0.5 tabular-nums">{typeof value === "number" ? fmt(value) : value}</p>
+            : <p className="text-3xl font-bold mt-0.5 tabular-nums" style={{ color: "var(--bot-ink)" }}>{typeof value === "number" ? fmt(value) : value}</p>
           }
           {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
         </div>
         {href && (
-          <div className="mt-2 flex items-center gap-1 text-xs font-medium opacity-60 hover:opacity-100">
+          <div className="mt-2 flex items-center gap-1 text-xs font-medium opacity-60 hover:opacity-100" style={{ color: accent }}>
             Ver detalle <ArrowRight className="h-3 w-3" />
           </div>
         )}
@@ -403,13 +403,13 @@ export default function AdminDashboard() {
   const userTrend: "up"|"down"|"neutral" = (ov.usersGrowth ?? 0) > 0 ? "up" : (ov.usersGrowth ?? 0) < 0 ? "down" : "neutral"
 
   return (
-    <div className="space-y-6 pb-10">
+    <div className="space-y-6 pb-10 pt-6">
 
       {/* ── Header ────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
+          <h1 className="text-[32px] font-bold tracking-tight" style={{ color: "var(--bot-ink)" }}>Dashboard</h1>
+          <p className="text-sm mt-0.5" style={{ color: "var(--bot-ink-soft)" }}>
             Panel de análisis — Herbario Digital HEAA
             {lastUpdate && (
               <span className="ml-2 opacity-60">
@@ -507,8 +507,8 @@ export default function AdminDashboard() {
                       label={{ value: `Prom: ${monthAvg}`, fontSize: 10, fill: "#94a3b8", position: "right" }} />
                   )}
                   <Line type="monotone" dataKey="plantas" name="Plantas"
-                    stroke="#16a34a" strokeWidth={2.5}
-                    dot={{ r: 4, fill: "#16a34a", strokeWidth: 2, stroke: "#fff" }}
+                    stroke="#2E5E38" strokeWidth={2.5}
+                    dot={{ r: 4, fill: "#2E5E38", strokeWidth: 2, stroke: "#fff" }}
                     activeDot={{ r: 6, cursor: "pointer" }} />
                 </LineChart>
               </ResponsiveContainer>
