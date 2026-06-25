@@ -220,6 +220,14 @@ export default function AdminPlantas() {
 
   useEffect(() => { load() }, [load])
 
+  // Leer el parámetro ?search= de la URL al montar (búsqueda global del topbar)
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const q = new URLSearchParams(window.location.search).get("search")
+    if (q) { setSearch(q); setPage(1) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // ── Detail modal ──────────────────────────────────────────────────────────
   const openDetail = async (id: number) => {
     setDetailOpen(true)

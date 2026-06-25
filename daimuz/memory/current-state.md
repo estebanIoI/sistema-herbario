@@ -54,10 +54,12 @@ contenedor `redis:7-alpine` con `REDIS_URL`, pero **el código nunca se conectab
 usaba `node-cache` en memoria. (`cacheService.js` tenía cachés de un proyecto de
 restaurante — código muerto, no importado.)
 
-- **`backend/src/services/cache.js`** — capa unificada: usa **Redis** (`ioredis`,
-  `REDIS_URL`) con **fallback automático a memoria** (node-cache) si Redis no está
-  disponible. API async: `get/set/del/isRedis`. No rompe el arranque si falta Redis.
-- `ioredis` añadido a `backend/package.json`.
+- **`backend/src/services/cache.js`** — capa unificada: usa **Redis** mediante un
+  **cliente RESP mínimo sobre `net`** (cero dependencias, no toca el lockfile) con
+  **fallback automático a memoria** (node-cache). API async: `get/set/del/isRedis`.
+  No rompe el arranque si falta Redis.
+  · Nota: se intentó con `ioredis` pero rompía el deploy (`--frozen-lockfile` exige
+    regenerar `pnpm-lock.yaml`); por eso se optó por el cliente sin dependencias.
 - Conectada en: `countriesController` (países/estados/ciudades, TTL 24 h) y
   `getPublicStatsData` (stats públicas, TTL 2 min).
 - MySQL 8 (sin ORM), Express API Gateway, Cloudinary, Leaflet clustering

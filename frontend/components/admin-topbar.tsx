@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import { Bell, Search, LogOut, User as UserIcon, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -21,6 +21,8 @@ const ROLE_LABEL: Record<string, string> = {
 
 export default function AdminTopbar() {
   const router = useRouter()
+  const pathname = usePathname()
+  const showSearch = pathname === "/admin" // la búsqueda global solo en el Dashboard
   const { user, logout } = useAuth()
   const [query, setQuery] = useState("")
   const [unread, setUnread] = useState(0)
@@ -50,20 +52,22 @@ export default function AdminTopbar() {
   return (
     <header className="sticky top-0 z-10 hidden px-4 pt-4 md:block md:px-7">
       <div className="glass-panel flex h-16 items-center gap-3 rounded-[24px] px-3 md:px-5">
-        {/* Búsqueda global */}
-        <form onSubmit={onSearch} className="relative flex-1 max-w-md">
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
-            style={{ color: "var(--bot-ink-soft)" }}
-          />
-          <input
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Buscar especímenes, familias, colectores…"
-            className="h-10 w-full rounded-2xl border border-transparent pl-9 pr-4 text-sm outline-none transition-colors focus:border-[color:var(--bot-green-2)]"
-            style={{ color: "var(--bot-ink)" }}
-          />
-        </form>
+        {/* Búsqueda global — solo en el Dashboard */}
+        {showSearch && (
+          <form onSubmit={onSearch} className="relative flex-1 max-w-md">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
+              style={{ color: "var(--bot-ink-soft)" }}
+            />
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Buscar especímenes, familias, colectores…"
+              className="h-10 w-full rounded-2xl border border-transparent pl-9 pr-4 text-sm outline-none transition-colors focus:border-[color:var(--bot-green-2)]"
+              style={{ color: "var(--bot-ink)" }}
+            />
+          </form>
+        )}
 
         <div className="ml-auto flex items-center gap-1.5">
           {/* Notificaciones */}

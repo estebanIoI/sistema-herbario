@@ -33,7 +33,6 @@ export const ROLE_LABEL: Record<Role, string> = {
 // (la más larga gana), así /admin/plantas/nueva hereda de /admin/plantas.
 export const ROUTE_ROLES: { prefix: string; roles: Role[] }[] = [
   { prefix: "/admin/plantas",       roles: ["admin", "investigador", "collector"] },
-  { prefix: "/admin/estadisticas",  roles: ["admin", "investigador"] },
   { prefix: "/admin/sugerencias",   roles: ["admin"] },
   { prefix: "/admin/pqrsdf",        roles: ["admin"] },
   { prefix: "/admin/publicaciones", roles: ["admin"] },
