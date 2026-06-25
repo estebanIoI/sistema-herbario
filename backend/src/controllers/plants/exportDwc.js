@@ -11,6 +11,9 @@ const DWC_FIELDS = [
   { term: 'occurrenceID',              col: '_occurrenceID' },
   { term: 'basisOfRecord',             col: '_basisOfRecord' },
   { term: 'kingdom',                   col: '_kingdom' },
+  { term: 'phylum',                    col: 'phylum' },
+  { term: 'class',                     col: 'class_name' },
+  { term: 'order',                     col: 'order_name' },
   { term: 'catalogNumber',             col: 'catalog_number' },
   { term: 'recordNumber',              col: 'record_number' },
   { term: 'scientificName',            col: 'scientific_name' },
@@ -47,6 +50,7 @@ const DWC_NS = 'http://rs.tdwg.org/dwc/terms/'
 // Columnas reales que pedimos a la BD (sin las virtuales que empiezan por _)
 const DB_COLS = [
   'id', 'occurrence_id', 'catalog_number', 'record_number',
+  'kingdom', 'phylum', 'class_name', 'order_name',
   'scientific_name', 'scientific_name_authorship', 'family', 'genus',
   'specific_epithet', 'infraspecific_epithet', 'taxon_rank', 'taxonomic_status',
   'vernacular_name', 'recorded_by', 'event_date', 'identified_by', 'date_identified',
@@ -87,7 +91,7 @@ function withVirtuals(p) {
     ...p,
     _occurrenceID: p.occurrence_id || `urn:catalog:HEAA:${p.catalog_number || p.id}`,
     _basisOfRecord: 'PreservedSpecimen',
-    _kingdom: 'Plantae',
+    _kingdom: p.kingdom || 'Plantae',
     _geodeticDatum: (p.decimal_latitude != null && p.decimal_longitude != null) ? 'WGS84' : '',
   }
 }

@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { LayoutDashboard, Leaf, Users, Settings, LogOut, Menu, MessageSquare, Monitor, Newspaper, FileText } from "lucide-react"
+import { LayoutDashboard, Leaf, Users, Settings, LogOut, Menu, MessageSquare, Monitor, Newspaper, FileText, Network } from "lucide-react"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
@@ -72,6 +72,7 @@ export default function AdminSidebar() {
   }[] = [
     { href: "/admin", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" />, roles: ["admin"] },
     { href: "/admin/plantas", label: "Plantas", icon: <Leaf className="h-5 w-5" />, roles: ["admin", "investigador", "collector"] },
+    { href: "/admin/taxonomia", label: "Taxonomía", icon: <Network className="h-5 w-5" />, roles: ["admin", "investigador", "collector"] },
     {
       href: "/admin/sugerencias", label: "Sugerencias", icon: <MessageSquare className="h-5 w-5" />, roles: ["admin"],
       badge: nuevasSugerencias > 0 ? nuevasSugerencias : undefined,

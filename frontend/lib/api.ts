@@ -34,6 +34,13 @@ interface AuthResponse {
   refreshToken?: string;
 }
 
+export interface TaxonNode {
+  name: string;
+  type: 'kingdom' | 'phylum' | 'class' | 'order' | 'family' | 'genus' | 'species';
+  plantCount: number;
+  children?: TaxonNode[];
+}
+
 class ApiService {
   private async fetchApi<T>(
     endpoint: string, 
@@ -630,6 +637,15 @@ class ApiService {
     total: number;
   }>> {
     return this.fetchApi('taxonomy.getFamilies');
+  }
+
+  // Jerarquía taxonómica completa (reino → especie)
+  async getTaxonomyHierarchy(): Promise<ApiResponse<{
+    levels: string[]
+    totalTaxa: number
+    tree: TaxonNode[]
+  }>> {
+    return this.fetchApi('taxonomy.getHierarchy');
   }
 
   // Obtener géneros por familia

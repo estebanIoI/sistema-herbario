@@ -431,19 +431,91 @@ const getSimilarNames = async (rank, name, family = null, genus = null) => {
   }
 };
 
+// ── Jerarquía taxonómica completa (reino → especie) — estilo gateway ─────────
+// Construye el árbol kingdom → phylum → class → order → family → genus → species
+// usando las columnas reales. Devuelve datos (NO usa res.json) para funcionar
+// correctamente a través del API Gateway (POST /api/service).
+const getHierarchy = async (data = {}) => {
+  const RANKS = ['kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species'];
+
+  const [rows] = await db.query(`
+    SELECT
+      COALESCE(NULLIF(kingdom, ''), 'Plantae')        AS kingdom,
+      COALESCE(NULLIF(phylum, ''), 'Sin asignar')     AS phylum,
+      COALESCE(NULLIF(class_name, ''), 'Sin asignar') AS class,
+      COALESCE(NULLIF(order_name, ''), 'Sin asignar') AS \`order\`,
+      family,
+      genus,
+      specific_epithet AS species,
+      COUNT(*) AS plant_count
+    FROM plants
+    WHERE status = 'published' AND family IS NOT NULL AND genus IS NOT NULL
+    GROUP BY kingdom, phylum, class, \`order\`, family, genus, specific_epithet
+    ORDER BY kingdom, phylum, class, \`order\`, family, genus, specific_epithet
+  `);
+
+  const root = {};
+  for (const row of rows) {
+    let level = root;
+    for (const rank of RANKS) {
+      const val = row[rank] || 'Sin asignar';
+      if (!level[val]) level[val] = { name: val, type: rank, plantCount: 0, children: {} };
+      level[val].plantCount += Number(row.plant_count);
+      level = level[val].children;
+    }
+  }
+
+  const toArray = (obj) => Object.values(obj).map(n => {
+    const node = { name: n.name, type: n.type, plantCount: n.plantCount };
+    if (Object.keys(n.children).length) node.children = toArray(n.children);
+    return node;
+  });
+
+  return { levels: RANKS, totalTaxa: rows.length, tree: toArray(root) };
+};
+
+// ── Adaptador Express → API Gateway ──────────────────────────────────────────
+// Las funciones de arriba están escritas en estilo Express (req.body.params /
+// res.json) y se rompían al invocarse por POST /api/service. Este adaptador les
+// inyecta un req/res falso para que funcionen sin reescribir sus cuerpos:
+//   · req.body.params = data (los parámetros que envía el gateway)
+//   · res.json({success:true,data}) → resuelve con `data`
+//   · res.json({success:false,...}) / res.status(n).json(...) → rechaza
+function gatewayAdapt(expressFn) {
+  return (data, user) =>
+    new Promise((resolve, reject) => {
+      const req = { body: { params: data || {} }, user };
+      const handle = (payload) => {
+        if (payload && payload.success === false) {
+          reject(new Error(payload.message || payload.error || 'Error en taxonomía'));
+        } else {
+          resolve(payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload);
+        }
+      };
+      const res = {
+        json: handle,
+        status: () => ({ json: (p) => reject(new Error(p?.message || p?.error || 'Error en taxonomía')) }),
+      };
+      Promise.resolve(expressFn(req, res)).catch(reject);
+    });
+}
+
 module.exports = {
-  getFamilies,
-  getGenera: getFamilies, // Alias
-  getSpecies: getFamilies, // Alias
-  getGeneraByFamily,
-  getSpeciesByGenus,
-  autocompleteFamilies,
-  autocompleteGenera,
-  autocompleteSpecies,
-  getTaxonomyTree,
-  validateTaxonomy,
-  createFamily: async (req, res) => res.json({ success: false, error: 'Funcionalidad pendiente' }),
-  createGenus: async (req, res) => res.json({ success: false, error: 'Funcionalidad pendiente' }),
-  updateTaxonomy: async (req, res) => res.json({ success: false, error: 'Funcionalidad pendiente' }),
-  deleteTaxonomy: async (req, res) => res.json({ success: false, error: 'Funcionalidad pendiente' })
+  // Servicio nativo del gateway (jerarquía completa reino→especie)
+  getHierarchy,
+  // Funciones Express adaptadas para funcionar vía /api/service
+  getFamilies: gatewayAdapt(getFamilies),
+  getGenera: gatewayAdapt(getFamilies),   // Alias
+  getSpecies: gatewayAdapt(getFamilies),  // Alias
+  getGeneraByFamily: gatewayAdapt(getGeneraByFamily),
+  getSpeciesByGenus: gatewayAdapt(getSpeciesByGenus),
+  autocompleteFamilies: gatewayAdapt(autocompleteFamilies),
+  autocompleteGenera: gatewayAdapt(autocompleteGenera),
+  autocompleteSpecies: gatewayAdapt(autocompleteSpecies),
+  getTaxonomyTree: gatewayAdapt(getTaxonomyTree),
+  validateTaxonomy: gatewayAdapt(validateTaxonomy),
+  createFamily: async () => { throw new Error('Funcionalidad pendiente') },
+  createGenus: async () => { throw new Error('Funcionalidad pendiente') },
+  updateTaxonomy: async () => { throw new Error('Funcionalidad pendiente') },
+  deleteTaxonomy: async () => { throw new Error('Funcionalidad pendiente') },
 };

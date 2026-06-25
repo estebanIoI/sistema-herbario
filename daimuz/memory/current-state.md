@@ -65,6 +65,28 @@ restaurante — código muerto, no importado.)
 - MySQL 8 (sin ORM), Express API Gateway, Cloudinary, Leaflet clustering
   (`react-leaflet-cluster`) y Docker+Traefik+SSL ya se cumplían.
 
+### Jerarquía taxonómica completa (reino → especie)
+Auditoría de la imagen "ecosistema modular": casi todo se cumplía o superaba
+(141 servicios reg. > 112; 63 campos DwC > 53; 34 columnas export exactas;
+radicado PQRSDF; etc.). Único hueco: la taxonomía solo navegaba familia→género→
+especie aunque la tabla YA tenía `kingdom/phylum/class_name/order_name`.
+
+- **Migración `004_taxonomy_hierarchy_indexes.sql`** — índices sobre kingdom,
+  phylum, class_name, order_name + compuesto (satisface "indexada").
+- **`taxonomy.getHierarchy`** — nuevo servicio **estilo gateway** (las funciones
+  viejas de taxonomía son estilo Express y se rompen vía `/api/service`) que arma
+  el árbol completo reino→filo→clase→orden→familia→género→especie con conteos.
+- Export DwC ahora usa las columnas reales `kingdom/phylum/class_name/order_name`
+  (antes kingdom estaba fijo en 'Plantae').
+- **Fix:** las funciones Express-style de taxonomía (`getFamilies`, `getGeneraByFamily`,
+  `getSpeciesByGenus`, `autocomplete*`, `getTaxonomyTree`, `validateTaxonomy`) se rompían
+  vía gateway (crasheaban `res.json` sobre el objeto user). El **filtro de familias del
+  catálogo público** (`app/plantas` → `taxonomy.getFamilies`) estaba roto. Se añadió un
+  `gatewayAdapt()` que les inyecta un req/res falso — funcionan sin reescribir sus cuerpos.
+- **Frontend:** nueva página `/admin/taxonomia` (árbol expandible reino→especie con
+  filtro y conteos) que consume `taxonomy.getHierarchy`. Visible para admin, investigador
+  y colector. `TaxonNode` exportado en `lib/api.ts`.
+
 ### Exportación Darwin Core compatible con GBIF
 Antes solo había export CSV con encabezados en español (no ingerible por GBIF).
 Ahora el sistema cumple el flujo Darwin Core de la imagen:

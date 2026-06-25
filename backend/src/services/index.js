@@ -97,6 +97,7 @@ const services = {
   'taxonomy.deleteTaxonomy': taxonomyController.deleteTaxonomy,
   'taxonomy.validateTaxonomy': taxonomyController.validateTaxonomy,
   'taxonomy.getTaxonomyTree': taxonomyController.getTaxonomyTree,
+  'taxonomy.getHierarchy': taxonomyController.getHierarchy,
 
   // ===============================
   // SERVICIOS DE UBICACIONES
