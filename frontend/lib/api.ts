@@ -24,7 +24,7 @@ interface User {
   id: number;
   name: string;
   email: string;
-  role: 'admin' | 'user' | 'collector';
+  role: 'admin' | 'investigador' | 'collector' | 'user';
   status: 'active' | 'inactive' | 'pending';
 }
 
@@ -549,6 +549,38 @@ class ApiService {
     habitat?: string;
   }): Promise<ApiResponse<{ csv: string; filename: string; count: number; format: string }>> {
     return this.fetchApi('plants.export', { body: JSON.stringify(filters ?? {}) });
+  }
+
+  // ===============================
+  // USUARIOS (gestión admin)
+  // ===============================
+  async getUsers(params?: {
+    page?: number; limit?: number; search?: string;
+    role?: string; status?: string; sortBy?: string; sortDir?: string;
+  }): Promise<ApiResponse<any>> {
+    return this.fetchApi('users.getAll', { body: JSON.stringify(params ?? {}) });
+  }
+
+  async createUser(data: {
+    name: string; email: string; password: string;
+    role?: string; phone?: string;
+  }): Promise<ApiResponse<any>> {
+    return this.fetchApi('users.create', { body: JSON.stringify(data) });
+  }
+
+  async updateUser(data: {
+    id: number; name?: string; email?: string; role?: string;
+    status?: string; phone?: string; password?: string;
+  }): Promise<ApiResponse<any>> {
+    return this.fetchApi('users.update', { body: JSON.stringify(data) });
+  }
+
+  async toggleUserStatus(id: number): Promise<ApiResponse<any>> {
+    return this.fetchApi('users.toggleStatus', { body: JSON.stringify({ id }) });
+  }
+
+  async deleteUser(id: number): Promise<ApiResponse<any>> {
+    return this.fetchApi('users.delete', { body: JSON.stringify({ id }) });
   }
 
   // Buscador de colectores (usuarios BD + recorded_by existentes)

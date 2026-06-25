@@ -20,8 +20,8 @@ const create = async (data, user) => {
       throw new Error('La contraseña debe tener al menos 6 caracteres');
     }
 
-    // Validar role
-    if (!['admin', 'user'].includes(role)) {
+    // Validar role — jerarquía: user < collector < investigador < admin
+    if (!['admin', 'investigador', 'collector', 'user'].includes(role)) {
       throw new Error('Rol inválido');
     }
 

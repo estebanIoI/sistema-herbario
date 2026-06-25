@@ -65,6 +65,9 @@ const update = async (data, user) => {
     // Solo admins pueden cambiar roles y estados
     if (user.role === 'admin') {
       if (role) {
+        if (!['admin', 'investigador', 'collector', 'user'].includes(role)) {
+          throw new Error('Rol inválido');
+        }
         updateFields.push('role = ?');
         updateValues.push(role);
       }

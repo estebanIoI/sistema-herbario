@@ -1,6 +1,47 @@
 # Estado Actual del Sistema
 
-*Última actualización: 2026-06-04 (auditoría de servicios + documentación OpenAPI 3.1)*
+*Última actualización: 2026-06-25 (RBAC de 4 roles + rediseño glass del admin)*
+
+---
+
+## 🛠️ Cambios sesión 2026-06-25
+
+### Control de acceso basado en roles (RBAC) — 4 roles reales
+Antes el sistema solo distinguía `admin` vs. resto. Ahora implementa la jerarquía
+de la matriz: **user < collector < investigador < admin**.
+
+- **BD**: enum `users.role` ampliado a `('admin','investigador','collector','user')`.
+  Migración: `backend/migrations/002_add_investigador_role.sql` (ejecutar en prod).
+- **Gateway** (`serviceController.js`): reemplazado el chequeo binario por
+  `ROLE_GRANTS` + `adminServices`.
+  - `plants.create` / `plants.update` → collector, investigador, admin (registrar especímenes).
+  - `plants.export` → investigador, admin (búsqueda avanzada + exportación). Antes el
+    export real (`plants.export`) estaba **sin gatear**; ahora exige auth. Las entradas
+    muertas `export.plants/statistics/collections` se eliminaron.
+  - Resto (usuarios, settings, página, sugerencias, pqrsdf, posts, backup, dashboard,
+    plants.delete/import/bulkDelete) → solo admin.
+- **users.create/update**: validan el set completo de roles.
+- **Frontend**:
+  - `lib/permissions.ts` — única fuente de verdad (jerarquía, `ROUTE_ROLES`,
+    `CAPABILITIES`, `can()`, `canAccessRoute()`, `roleHome()`).
+  - `ProtectedRoute` extendido con `allowedRoles` + guard por ruta.
+  - Sidebar filtra secciones por rol; `/admin/plantas` gatea Exportar (investigador+),
+    e Importar/Backup/Eliminar (admin). El catálogo público oculta Exportar salvo investigador/admin.
+  - Login redirige según `roleHome(role)`.
+  - **CRUD de usuarios** en `/admin/usuarios` (crear, editar rol/estado, activar/desactivar,
+    eliminar) — antes era solo lectura. `toggleStatus` se hace vía `users.update` (el servicio
+    `users.toggleStatus` sigue sin registrar en el gateway).
+  - Nueva página real `/admin/estadisticas` (usa `public.getStats`) para investigador/admin.
+
+### Rediseño visual del admin (Glassmorphism + Minimalismo Botánico)
+- `globals.css`: tokens glass (claro/oscuro) scoped a `.admin-shell`, fondo botánico,
+  toda `Card` de shadcn → cristal automático.
+- Nuevo `admin-topbar.tsx` (búsqueda, notificaciones, perfil), sidebar glass flotante,
+  KPIs y paleta de gráficas en verde botánico.
+
+### CORS en producción (fix)
+- `docker-compose.yml`: añadida label Traefik `accesscontrolallowcredentials=true`
+  (faltaba con `credentials:'include'`). Recrear el contenedor del API para aplicarla.
 
 ---
 

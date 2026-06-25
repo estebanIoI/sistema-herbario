@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Leaf, Eye, EyeOff, AlertCircle, Microscope, TreePine, BookOpen } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
+import { roleHome, type Role } from "@/lib/permissions"
 import { usePublicSettings } from "@/lib/use-public-settings"
 
 const DEFAULT_BG = "https://www.floresyplantas.net/wp-content/uploads/psychotria-elata-1.jpg"
@@ -44,7 +45,7 @@ export default function LoginPage() {
     try {
       const result = await login(loginData.email, loginData.password)
       if (result.success) {
-        router.push("/admin")
+        router.push(roleHome((result.user?.role ?? "user") as Role))
       } else {
         setError(result.error || "Error al iniciar sesión")
       }

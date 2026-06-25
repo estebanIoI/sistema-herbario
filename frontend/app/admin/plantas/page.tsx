@@ -17,6 +17,8 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { apiService } from "@/lib/api"
+import { useAuth } from "@/lib/auth-context"
+import { can, type Role } from "@/lib/permissions"
 
 interface Plant {
   id: number
@@ -145,6 +147,10 @@ const fmtDate = (d?: string) =>
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function AdminPlantas() {
   const { toast } = useToast()
+  const { user } = useAuth()
+  const role = (user?.role ?? "user") as Role
+  const isAdmin = role === "admin"
+  const canExport = can(role, "exportData")
   const [plantas, setPlantas] = useState<Plant[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -640,10 +646,12 @@ export default function AdminPlantas() {
                 <Globe className="h-3.5 w-3.5" />
               </Button>
           }
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-600" title="Eliminar"
-            onClick={e => { e.stopPropagation(); deletePlant(p.id, p.scientific_name) }}>
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          {isAdmin && (
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-600" title="Eliminar"
+              onClick={e => { e.stopPropagation(); deletePlant(p.id, p.scientific_name) }}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </div>
       ),
     },
@@ -670,14 +678,15 @@ export default function AdminPlantas() {
         bulkPublish()
       },
     },
-    {
-      id: "delete", label: "Eliminar", variant: "destructive",
+    // Eliminar en masa: solo admin
+    ...(isAdmin ? [{
+      id: "delete", label: "Eliminar", variant: "destructive" as const,
       icon: <Trash2 className="h-3 w-3" />,
-      onClick: (ids) => {
+      onClick: (ids: Set<string | number>) => {
         setSelected(ids)
         bulkDelete()
       },
-    },
+    }] : []),
   ]
 
   return (
@@ -694,29 +703,37 @@ export default function AdminPlantas() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={doExport} disabled={exporting}>
-            {exporting
-              ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Exportando…</>
-              : <><Download className="h-4 w-4 mr-2" />Exportar CSV</>}
-          </Button>
-          <Button variant="outline" size="sm" onClick={doBackup} disabled={backingUp}>
-            {backingUp
-              ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generando…</>
-              : <><Database className="h-4 w-4 mr-2" />Backup .sql</>}
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => { setImportOpen(true); resetImport() }}>
-            <FileSpreadsheet className="h-4 w-4 mr-2" />
-            Importar Excel
-          </Button>
-          <Button
-            variant="outline" size="sm"
-            className="text-orange-600 border-orange-200 hover:bg-orange-50"
-            onClick={purgeDeletedLegacy}
-            title="Elimina permanentemente los registros con estado 'eliminado' heredados."
-          >
-            <DatabaseZap className="h-4 w-4 mr-2" />
-            Limpiar eliminados
-          </Button>
+          {canExport && (
+            <Button variant="outline" size="sm" onClick={doExport} disabled={exporting}>
+              {exporting
+                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Exportando…</>
+                : <><Download className="h-4 w-4 mr-2" />Exportar CSV</>}
+            </Button>
+          )}
+          {isAdmin && (
+            <Button variant="outline" size="sm" onClick={doBackup} disabled={backingUp}>
+              {backingUp
+                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generando…</>
+                : <><Database className="h-4 w-4 mr-2" />Backup .sql</>}
+            </Button>
+          )}
+          {isAdmin && (
+            <Button variant="outline" size="sm" onClick={() => { setImportOpen(true); resetImport() }}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Importar Excel
+            </Button>
+          )}
+          {isAdmin && (
+            <Button
+              variant="outline" size="sm"
+              className="text-orange-600 border-orange-200 hover:bg-orange-50"
+              onClick={purgeDeletedLegacy}
+              title="Elimina permanentemente los registros con estado 'eliminado' heredados."
+            >
+              <DatabaseZap className="h-4 w-4 mr-2" />
+              Limpiar eliminados
+            </Button>
+          )}
           <Button asChild size="sm" className="bg-green-600 hover:bg-green-700">
             <Link href="/admin/plantas/nueva">
               <Plus className="h-4 w-4 mr-2" />

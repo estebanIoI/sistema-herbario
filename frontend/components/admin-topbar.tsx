@@ -16,7 +16,7 @@ import { useAuth } from "@/lib/auth-context"
 import { apiService } from "@/lib/api"
 
 const ROLE_LABEL: Record<string, string> = {
-  admin: "Administrador", collector: "Colector", user: "Usuario",
+  admin: "Administrador", investigador: "Investigador", collector: "Colector", user: "Usuario",
 }
 
 export default function AdminTopbar() {

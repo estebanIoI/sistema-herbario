@@ -51,10 +51,8 @@ const SERVICES_REQUIRING_AUTH = [
   'uploads.uploadImage',
   'uploads.deleteImage',
   
-  // Exportación
-  'export.plants',
-  'export.statistics',
-  'export.collections',
+  // Exportación (requiere auth — gateado a Investigador/Admin en ROLE_GRANTS)
+  'plants.export',
 
   // Backup
   'backup.generate',
@@ -165,10 +163,23 @@ const handleRequest = async (req, res) => {
       }
     }
 
-    // Verificar permisos específicos para servicios de administrador
+    // ── Control de acceso basado en roles (RBAC) ───────────────────────────
+    // Jerarquía de la matriz:  público < collector < investigador < admin
+    //
+    // ROLE_GRANTS: servicios que NO son exclusivos de admin. Indica qué roles
+    // (además de admin) pueden ejecutarlos.
+    const ROLE_GRANTS = {
+      // Registrar especímenes en campo con imágenes → Colector, Investigador, Admin
+      'plants.create': ['admin', 'collector', 'investigador'],
+      'plants.update': ['admin', 'collector', 'investigador'],
+      // Búsqueda avanzada y exportación de datos → Investigador, Admin
+      'plants.export': ['admin', 'investigador'],
+    };
+
+    // Gestión total del portal y roles → solo Admin
     const adminServices = [
-      'users.getAll', 'users.create', 'users.update', 'users.delete', 'users.toggleStatus',
-      'plants.create', 'plants.update', 'plants.delete', 'plants.import', 'plants.bulkDelete',
+      'users.getAll', 'users.getById', 'users.create', 'users.update', 'users.delete', 'users.toggleStatus',
+      'plants.delete', 'plants.import', 'plants.bulkDelete',
       'dashboard.getStats', 'dashboard.getRecentActivity',
       'suggestions.approve', 'suggestions.reject', 'suggestions.respond',
       'suggestions.update', 'suggestions.updateStatus', 'suggestions.countUnread',
@@ -176,12 +187,22 @@ const handleRequest = async (req, res) => {
       'settings.update', 'settings.updateMultiple', 'settings.getAll',
       'settings.reset', 'settings.backup', 'settings.restore', 'settings.testCloudinary',
       'uploads.deleteImage',
-      'export.plants', 'export.statistics', 'export.collections',
       'posts.create', 'posts.update', 'posts.delete',
       'backup.generate',
     ];
 
-    if (adminServices.includes(service) && (!user || user.role !== 'admin')) {
+    if (ROLE_GRANTS[service]) {
+      // Servicio con roles específicos
+      if (!user || !ROLE_GRANTS[service].includes(user.role)) {
+        logger.warn(`Acceso denegado (rol) para ${service} por ${user ? user.email : 'anónimo'} [${user ? user.role : '—'}]`);
+        return res.status(403).json({
+          success: false,
+          error: 'Permisos insuficientes',
+          message: 'Tu rol no tiene acceso a esta acción'
+        });
+      }
+    } else if (adminServices.includes(service) && (!user || user.role !== 'admin')) {
+      // Servicio exclusivo de administrador
       logger.warn(`Acceso denegado para servicio de admin: ${service} por usuario: ${user ? user.email : 'anónimo'}`);
       return res.status(403).json({
         success: false,
