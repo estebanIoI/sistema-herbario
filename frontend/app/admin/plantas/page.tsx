@@ -2,6 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { DataTable, ColDef, FilterDef, BulkAction } from "@/components/ui/data-table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
@@ -13,10 +19,12 @@ import {
   Plus, Edit2, Eye, EyeOff, Trash2, Globe, FileSpreadsheet,
   Loader2, CheckCircle2, Upload, X,
   AlertCircle, BookOpen, MapPin, Calendar, ImageIcon, ExternalLink, DatabaseZap,
-  Download, Database
+  Download, Database, RotateCcw
 } from "lucide-react"
 import Link from "next/link"
 import { apiService } from "@/lib/api"
+import { useAuth } from "@/lib/auth-context"
+import { can, type Role } from "@/lib/permissions"
 
 interface Plant {
   id: number
@@ -136,7 +144,7 @@ const STATUS_CFG: Record<string, { label: string; cls: string }> = {
   published: { label: "Publicado", cls: "bg-green-100 text-green-700 border-green-200" },
   draft:     { label: "Borrador",  cls: "bg-amber-100  text-amber-700  border-amber-200"  },
   review:    { label: "Revisión",  cls: "bg-sky-100    text-sky-700    border-sky-200"    },
-  deleted:   { label: "Eliminado", cls: "bg-red-100    text-red-700    border-red-200"    },
+  deleted:   { label: "Archivado", cls: "bg-red-100    text-red-700    border-red-200"    },
 }
 
 const fmtDate = (d?: string) =>
@@ -145,6 +153,10 @@ const fmtDate = (d?: string) =>
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function AdminPlantas() {
   const { toast } = useToast()
+  const { user } = useAuth()
+  const role = (user?.role ?? "user") as Role
+  const isAdmin = role === "admin"
+  const canExport = can(role, "exportData")
   const [plantas, setPlantas] = useState<Plant[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -176,6 +188,7 @@ export default function AdminPlantas() {
   // Delete confirmation dialog
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ id?: number; name?: string; isBulk?: boolean } | null>(null)
+  const [deleteReason, setDeleteReason] = useState("")
   const [deleting, setDeleting] = useState(false)
 
   const load = useCallback(async () => {
@@ -207,6 +220,14 @@ export default function AdminPlantas() {
 
   useEffect(() => { load() }, [load])
 
+  // Leer el parámetro ?search= de la URL al montar (búsqueda global del topbar)
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const q = new URLSearchParams(window.location.search).get("search")
+    if (q) { setSearch(q); setPage(1) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // ── Detail modal ──────────────────────────────────────────────────────────
   const openDetail = async (id: number) => {
     setDetailOpen(true)
@@ -231,27 +252,39 @@ export default function AdminPlantas() {
   const confirmDeleteAction = async () => {
     if (!deleteTarget) return
     setDeleting(true)
+    const reason = deleteReason.trim() || undefined
     try {
       if (deleteTarget.isBulk) {
-        for (const id of selected) await apiService.deletePlant(id as number)
-        toast({ title: "Eliminados", description: `${selected.size} espécimen(es) eliminados permanentemente.` })
+        for (const id of selected) await apiService.deletePlant(id as number, reason)
+        toast({ title: "Especímenes archivados", description: `${selected.size} espécimen(es) movidos a la papelera. Se conservan y pueden restaurarse.` })
         clearSelection()
       } else {
-        const res = await apiService.deletePlant(deleteTarget.id!)
+        const res = await apiService.deletePlant(deleteTarget.id!, reason)
         if (res.success) {
-          toast({ title: "Espécimen eliminado", description: deleteTarget.name ? `"${deleteTarget.name}" fue eliminado de la base de datos.` : "El espécimen fue eliminado." })
+          toast({ title: "Espécimen archivado", description: deleteTarget.name ? `"${deleteTarget.name}" se movió a la papelera. Se conserva y puede restaurarse.` : "El espécimen se archivó." })
           setDetailOpen(false)
         } else {
-          toast({ title: "Error al eliminar", description: res.error || "No se pudo eliminar el espécimen.", variant: "destructive" })
+          toast({ title: "Error al archivar", description: res.error || "No se pudo archivar el espécimen.", variant: "destructive" })
         }
       }
     } catch (e: any) {
-      toast({ title: "Error al eliminar", description: e.message || "Error de conexión.", variant: "destructive" })
+      toast({ title: "Error al archivar", description: e.message || "Error de conexión.", variant: "destructive" })
     } finally {
       setDeleting(false)
       setDeleteConfirmOpen(false)
       setDeleteTarget(null)
+      setDeleteReason("")
       load()
+    }
+  }
+
+  const restorePlant = async (id: number, name?: string) => {
+    const res = await apiService.restorePlant(id)
+    if (res.success) {
+      toast({ title: "Espécimen restaurado", description: name ? `"${name}" volvió como borrador.` : "Restaurado como borrador." })
+      load()
+    } else {
+      toast({ title: "Error al restaurar", description: res.error || "No se pudo restaurar.", variant: "destructive" })
     }
   }
 
@@ -481,15 +514,56 @@ export default function AdminPlantas() {
     } finally { setExporting(false) }
   }
 
-  // ── Conservation status badge ──────────────────────────────────────────────
+  // Exportación Darwin Core (DwC-A / CSV-DwC / Excel) compatible con GBIF
+  const doExportDwc = async (format: "dwca" | "dwc-csv" | "excel", label: string) => {
+    setExporting(true)
+    try {
+      const res = await apiService.exportDwc(format, { search: search || undefined })
+      if (!res.success || !res.data) {
+        toast({ title: "Error al exportar", description: res.error ?? "Error desconocido", variant: "destructive" })
+        return
+      }
+      const { base64, filename, mimeType, count } = res.data
+      const bin = atob(base64)
+      const bytes = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+      const blob = new Blob([bytes], { type: mimeType })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url; a.download = filename; a.click()
+      URL.revokeObjectURL(url)
+      toast({ title: `${label} exportado`, description: `${count} especímenes descargados` })
+    } catch (e: any) {
+      toast({ title: "Error al exportar", description: e.message, variant: "destructive" })
+    } finally { setExporting(false) }
+  }
+
+  // ── Conservation status (códigos IUCN del ENUM de MySQL) ────────────────────
+  const IUCN: Record<string, { label: string; cls: string }> = {
+    NE: { label: 'No evaluada',                 cls: 'bg-gray-100 text-gray-700 border-gray-200' },
+    DD: { label: 'Datos insuficientes',         cls: 'bg-gray-100 text-gray-700 border-gray-200' },
+    LC: { label: 'Preocupación menor',          cls: 'bg-green-100 text-green-700 border-green-200' },
+    NT: { label: 'Casi amenazada',              cls: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+    VU: { label: 'Vulnerable',                  cls: 'bg-amber-100 text-amber-700 border-amber-200' },
+    EN: { label: 'En peligro',                  cls: 'bg-orange-100 text-orange-700 border-orange-200' },
+    CR: { label: 'En peligro crítico',          cls: 'bg-red-100 text-red-700 border-red-200' },
+    EW: { label: 'Extinta en estado silvestre', cls: 'bg-gray-200 text-gray-700 border-gray-300' },
+    EX: { label: 'Extinta',                     cls: 'bg-gray-200 text-gray-700 border-gray-300' },
+  }
+  const conservationLabel = (cs?: string) => {
+    if (!cs) return ''
+    return IUCN[cs]?.label ?? cs // códigos → etiqueta; texto legado se muestra tal cual
+  }
   const conservationCls = (cs?: string) => {
     if (!cs) return null
-    if (cs.includes('crítico'))  return 'bg-red-100 text-red-700 border-red-200'
-    if (cs.includes('peligro'))  return 'bg-orange-100 text-orange-700 border-orange-200'
-    if (cs === 'Vulnerable')     return 'bg-amber-100 text-amber-700 border-amber-200'
-    if (cs.includes('amenazada'))return 'bg-yellow-100 text-yellow-700 border-yellow-200'
-    if (cs.includes('menor'))    return 'bg-green-100 text-green-700 border-green-200'
-    if (cs.includes('Extinta'))  return 'bg-gray-200 text-gray-700 border-gray-300'
+    if (IUCN[cs]) return IUCN[cs].cls
+    // Fallback para datos legados con texto en español
+    if (cs.includes('crítico'))   return 'bg-red-100 text-red-700 border-red-200'
+    if (cs.includes('peligro'))   return 'bg-orange-100 text-orange-700 border-orange-200'
+    if (cs === 'Vulnerable')      return 'bg-amber-100 text-amber-700 border-amber-200'
+    if (cs.includes('amenazada')) return 'bg-yellow-100 text-yellow-700 border-yellow-200'
+    if (cs.includes('menor'))     return 'bg-green-100 text-green-700 border-green-200'
+    if (cs.includes('Extinta'))   return 'bg-gray-200 text-gray-700 border-gray-300'
     return null
   }
 
@@ -595,7 +669,7 @@ export default function AdminPlantas() {
             }
             {cls && p.conservation_status && (
               <span className={`inline-block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded border ${cls}`}>
-                {p.conservation_status}
+                {conservationLabel(p.conservation_status)}
               </span>
             )}
           </div>
@@ -630,20 +704,33 @@ export default function AdminPlantas() {
               <Edit2 className="h-3.5 w-3.5" />
             </Button>
           </Link>
-          {p.status === "published"
-            ? <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600" title="Despublicar"
-                onClick={e => { e.stopPropagation(); unpublishPlant(p.id) }}>
-                <EyeOff className="h-3.5 w-3.5" />
+          {p.status === "deleted" ? (
+            isAdmin && (
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" title="Restaurar"
+                onClick={e => { e.stopPropagation(); restorePlant(p.id, p.scientific_name) }}>
+                <RotateCcw className="h-3.5 w-3.5" />
               </Button>
-            : <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" title="Publicar"
-                onClick={e => { e.stopPropagation(); publishPlant(p.id) }}>
-                <Globe className="h-3.5 w-3.5" />
-              </Button>
-          }
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-600" title="Eliminar"
-            onClick={e => { e.stopPropagation(); deletePlant(p.id, p.scientific_name) }}>
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+            )
+          ) : (
+            <>
+              {p.status === "published"
+                ? <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600" title="Despublicar"
+                    onClick={e => { e.stopPropagation(); unpublishPlant(p.id) }}>
+                    <EyeOff className="h-3.5 w-3.5" />
+                  </Button>
+                : <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" title="Publicar"
+                    onClick={e => { e.stopPropagation(); publishPlant(p.id) }}>
+                    <Globe className="h-3.5 w-3.5" />
+                  </Button>
+              }
+              {isAdmin && (
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-600" title="Archivar"
+                  onClick={e => { e.stopPropagation(); deletePlant(p.id, p.scientific_name) }}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </>
+          )}
         </div>
       ),
     },
@@ -656,6 +743,7 @@ export default function AdminPlantas() {
         { value: "published", label: "Publicados" },
         { value: "draft",     label: "Borradores" },
         { value: "review",    label: "En revisión" },
+        { value: "deleted",   label: "Papelera (archivados)" },
         { value: "all",       label: "Todos" },
       ],
     },
@@ -670,14 +758,15 @@ export default function AdminPlantas() {
         bulkPublish()
       },
     },
-    {
-      id: "delete", label: "Eliminar", variant: "destructive",
+    // Eliminar en masa: solo admin
+    ...(isAdmin ? [{
+      id: "delete", label: "Eliminar", variant: "destructive" as const,
       icon: <Trash2 className="h-3 w-3" />,
-      onClick: (ids) => {
+      onClick: (ids: Set<string | number>) => {
         setSelected(ids)
         bulkDelete()
       },
-    },
+    }] : []),
   ]
 
   return (
@@ -694,29 +783,68 @@ export default function AdminPlantas() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={doExport} disabled={exporting}>
-            {exporting
-              ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Exportando…</>
-              : <><Download className="h-4 w-4 mr-2" />Exportar CSV</>}
-          </Button>
-          <Button variant="outline" size="sm" onClick={doBackup} disabled={backingUp}>
-            {backingUp
-              ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generando…</>
-              : <><Database className="h-4 w-4 mr-2" />Backup .sql</>}
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => { setImportOpen(true); resetImport() }}>
-            <FileSpreadsheet className="h-4 w-4 mr-2" />
-            Importar Excel
-          </Button>
-          <Button
-            variant="outline" size="sm"
-            className="text-orange-600 border-orange-200 hover:bg-orange-50"
-            onClick={purgeDeletedLegacy}
-            title="Elimina permanentemente los registros con estado 'eliminado' heredados."
-          >
-            <DatabaseZap className="h-4 w-4 mr-2" />
-            Limpiar eliminados
-          </Button>
+          {canExport && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={exporting}>
+                  {exporting
+                    ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Exportando…</>
+                    : <><Download className="h-4 w-4 mr-2" />Exportar</>}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel>Compatible con GBIF</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => doExportDwc("dwca", "Darwin Core Archive")}>
+                  <Database className="h-4 w-4 mr-2" />
+                  <div className="flex flex-col">
+                    <span>Darwin Core Archive (.zip)</span>
+                    <span className="text-[11px] text-muted-foreground">Formato oficial para GBIF</span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => doExportDwc("dwc-csv", "Darwin Core CSV")}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  <div className="flex flex-col">
+                    <span>Darwin Core CSV</span>
+                    <span className="text-[11px] text-muted-foreground">Términos DwC estandarizados</span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => doExportDwc("excel", "Excel")}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  Excel (.xls)
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Uso interno</DropdownMenuLabel>
+                <DropdownMenuItem onClick={doExport}>
+                  <Download className="h-4 w-4 mr-2" />
+                  CSV (encabezados en español)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          {isAdmin && (
+            <Button variant="outline" size="sm" onClick={doBackup} disabled={backingUp}>
+              {backingUp
+                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generando…</>
+                : <><Database className="h-4 w-4 mr-2" />Backup .sql</>}
+            </Button>
+          )}
+          {isAdmin && (
+            <Button variant="outline" size="sm" onClick={() => { setImportOpen(true); resetImport() }}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Importar Excel
+            </Button>
+          )}
+          {isAdmin && (
+            <Button
+              variant="outline" size="sm"
+              className="text-orange-600 border-orange-200 hover:bg-orange-50"
+              onClick={purgeDeletedLegacy}
+              title="Elimina permanentemente los registros con estado 'eliminado' heredados."
+            >
+              <DatabaseZap className="h-4 w-4 mr-2" />
+              Limpiar eliminados
+            </Button>
+          )}
           <Button asChild size="sm" className="bg-green-600 hover:bg-green-700">
             <Link href="/admin/plantas/nueva">
               <Plus className="h-4 w-4 mr-2" />
@@ -1258,7 +1386,7 @@ export default function AdminPlantas() {
                       <div className="col-span-2"><Separator /></div>
                       <Field label="Usos" value={selectedPlant.uses} wide />
                       <Field label="Instrucciones de cuidado" value={selectedPlant.care_instructions} wide />
-                      <Field label="Estado de conservación" value={selectedPlant.conservation_status} />
+                      <Field label="Estado de conservación" value={conservationLabel(selectedPlant.conservation_status)} />
                       <div className="col-span-2"><Separator /></div>
                       <Field label="Observaciones" value={selectedPlant.observations} wide />
                       <Field label="Notas" value={selectedPlant.notes} wide />
@@ -1320,31 +1448,42 @@ export default function AdminPlantas() {
       <Dialog open={deleteConfirmOpen} onOpenChange={open => { if (!deleting) setDeleteConfirmOpen(open) }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
               <Trash2 className="h-5 w-5" />
-              Eliminar espécimen
+              Archivar espécimen
             </DialogTitle>
             <DialogDescription className="pt-1">
               {deleteTarget?.isBulk
-                ? `Estás a punto de eliminar ${selected.size} espécimen(es) permanentemente. Esta acción no se puede deshacer.`
-                : <>Estás a punto de eliminar <span className="font-medium text-foreground italic">{deleteTarget?.name ?? 'este espécimen'}</span> permanentemente. Esta acción no se puede deshacer.</>
+                ? `Vas a archivar ${selected.size} espécimen(es). No se borran de la base de datos: se mueven a la papelera y pueden restaurarse.`
+                : <>Vas a archivar <span className="font-medium text-foreground italic">{deleteTarget?.name ?? 'este espécimen'}</span>. No se borra de la base de datos: se mueve a la papelera y puede restaurarse.</>
               }
             </DialogDescription>
           </DialogHeader>
+          <div className="space-y-1.5 pt-1">
+            <Label htmlFor="del-reason" className="text-sm">Motivo (por qué) — opcional pero recomendado</Label>
+            <Textarea
+              id="del-reason"
+              value={deleteReason}
+              onChange={e => setDeleteReason(e.target.value)}
+              placeholder="Ej: duplicado, dato erróneo, espécimen reclasificado…"
+              rows={3}
+            />
+            <p className="text-xs text-muted-foreground">Queda registrado junto con quién y cuándo, para trazabilidad.</p>
+          </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button
               variant="outline"
-              onClick={() => setDeleteConfirmOpen(false)}
+              onClick={() => { setDeleteConfirmOpen(false); setDeleteReason("") }}
               disabled={deleting}
             >
               Cancelar
             </Button>
             <Button
-              variant="destructive"
               onClick={confirmDeleteAction}
               disabled={deleting}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
             >
-              {deleting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Eliminando…</> : "Eliminar definitivamente"}
+              {deleting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Archivando…</> : "Archivar"}
             </Button>
           </div>
         </DialogContent>

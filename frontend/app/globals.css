@@ -81,3 +81,166 @@
     clip-path: circle(150vmax at var(--ripple-x, 50%) var(--ripple-y, 50%));
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   GLASSMORPHISM + MINIMALISMO BOTÁNICO — Panel de Administración
+   Scoped a .admin-shell para no afectar el sitio público.
+   ════════════════════════════════════════════════════════════════════════ */
+
+.admin-shell {
+  /* Paleta botánica */
+  --bot-green:    #2E5E38;
+  --bot-green-2:  #7BA66C;
+  --bot-ink:      #1E1E1E;
+  --bot-ink-soft: #6B6B6B;
+
+  /* Tokens de cristal — modo claro */
+  --glass-bg:        rgba(255, 255, 255, 0.65);
+  --glass-bg-strong: rgba(255, 255, 255, 0.78);
+  --glass-border:    rgba(255, 255, 255, 0.55);
+  --glass-shadow:    0 8px 32px rgba(0, 0, 0, 0.08);
+  --glass-shadow-sm: 0 4px 18px rgba(0, 0, 0, 0.06);
+  --glass-radius:    24px;
+
+  position: relative;
+  min-height: 100vh;
+  color: var(--bot-ink);
+  background:
+    radial-gradient(circle at top left,    rgba(122, 166, 108, 0.18), transparent 42%),
+    radial-gradient(circle at bottom right, rgba(46, 94, 56, 0.12),   transparent 38%),
+    radial-gradient(circle at 60% 10%,      rgba(123, 166, 108, 0.08), transparent 30%),
+    #F4F6F3;
+  background-attachment: fixed;
+}
+
+/* Tokens de cristal — modo oscuro */
+.dark .admin-shell {
+  --bot-green:    #7BA66C;
+  --bot-green-2:  #A7C99A;
+  --bot-ink:      #ECEFEA;
+  --bot-ink-soft: #9BA89B;
+
+  --glass-bg:        rgba(28, 36, 30, 0.55);
+  --glass-bg-strong: rgba(32, 42, 34, 0.72);
+  --glass-border:    rgba(255, 255, 255, 0.08);
+  --glass-shadow:    0 8px 32px rgba(0, 0, 0, 0.45);
+  --glass-shadow-sm: 0 4px 18px rgba(0, 0, 0, 0.35);
+
+  background:
+    radial-gradient(circle at top left,    rgba(46, 94, 56, 0.30),  transparent 42%),
+    radial-gradient(circle at bottom right, rgba(20, 30, 22, 0.55),  transparent 40%),
+    #10140f;
+}
+
+/* Hojas decorativas en las esquinas (SVG inline, sin assets externos) */
+.admin-shell::before,
+.admin-shell::after {
+  content: "";
+  position: fixed;
+  width: 340px;
+  height: 340px;
+  pointer-events: none;
+  z-index: 0;
+  background-repeat: no-repeat;
+  background-size: contain;
+  opacity: 0.5;
+}
+.admin-shell::before {
+  top: -40px;
+  right: -40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cg fill='none' stroke='%237BA66C' stroke-width='2' opacity='0.6'%3E%3Cpath d='M150 20 C110 40 90 90 100 150 M150 20 C190 60 180 120 130 150 M150 20 C130 70 120 110 115 140'/%3E%3Cpath d='M60 60 C50 80 55 110 75 130 M60 60 C80 70 90 100 80 125'/%3E%3C/g%3E%3C/svg%3E");
+}
+.admin-shell::after {
+  bottom: -40px;
+  left: -40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cg fill='none' stroke='%232E5E38' stroke-width='2' opacity='0.45'%3E%3Cpath d='M50 180 C90 160 110 110 100 50 M50 180 C10 140 20 80 70 50 M50 180 C70 130 80 90 85 60'/%3E%3Cpath d='M140 140 C150 120 145 90 125 70 M140 140 C120 130 110 100 120 75'/%3E%3C/g%3E%3C/svg%3E");
+}
+.dark .admin-shell::before,
+.dark .admin-shell::after { opacity: 0.25; }
+
+/* El contenido va por encima de las hojas decorativas */
+.admin-shell > * { position: relative; z-index: 1; }
+
+/* ── Cristal automático: toda Card de shadcn dentro del admin ──────────── */
+.admin-shell .bg-card {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+/* Tiles y contenedores que no usan <Card> (páginas usuarios, plantas, etc.) */
+.admin-shell .bg-background {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+  backdrop-filter: blur(16px) saturate(135%);
+}
+.admin-shell .bg-muted\/20,
+.admin-shell .bg-muted\/30,
+.admin-shell .bg-muted\/40 {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  backdrop-filter: blur(14px) saturate(130%);
+}
+
+/* Popovers, dropdowns y dialogs translúcidos también */
+.admin-shell .bg-popover {
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid var(--glass-border);
+}
+
+/* Utilidades reutilizables (Sidebar, Topbar, contenedores custom) */
+.glass-panel {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  backdrop-filter: blur(22px) saturate(140%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+.glass-panel-strong {
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: blur(26px) saturate(150%);
+  backdrop-filter: blur(26px) saturate(150%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+/* Item de navegación del sidebar */
+.glass-nav-item {
+  border-radius: 16px;
+  color: var(--bot-ink-soft);
+  transition: background 0.25s ease, color 0.25s ease;
+}
+.glass-nav-item:hover {
+  background: rgba(46, 94, 56, 0.08);
+  color: var(--bot-green);
+}
+.glass-nav-item[data-active="true"] {
+  background: rgba(46, 94, 56, 0.15);
+  color: var(--bot-green);
+  font-weight: 600;
+}
+.dark .glass-nav-item:hover    { background: rgba(167, 201, 154, 0.12); }
+.dark .glass-nav-item[data-active="true"] { background: rgba(167, 201, 154, 0.18); }
+
+/* Inputs translúcidos dentro del admin */
+.admin-shell input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.admin-shell textarea,
+.admin-shell select {
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+/* Scrollbar minimalista */
+.admin-shell ::-webkit-scrollbar { width: 8px; height: 8px; }
+.admin-shell ::-webkit-scrollbar-thumb {
+  background: rgba(46, 94, 56, 0.25);
+  border-radius: 8px;
+}
+.admin-shell ::-webkit-scrollbar-thumb:hover { background: rgba(46, 94, 56, 0.4); }

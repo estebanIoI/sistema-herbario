@@ -765,23 +765,30 @@ const update = async (firstArg, secondArg) => {
  * 1) Gateway de servicios: deletePlant(data, user)
  * 2) Ruta Express clásica: deletePlant(req, res)
  */
+// ── SOFT DELETE (Trazabilidad total) ─────────────────────────────────────────
+// NO borra físicamente: marca status='deleted' y registra quién/cuándo/por qué.
+// El borrado físico real solo ocurre vía `purgeDeleted` (papelera → admin).
 const deletePlant = async (firstArg, secondArg) => {
   const isExpress = firstArg && firstArg.body && secondArg && typeof secondArg.status === 'function';
-  let id;
+  let id, user, reason;
   try {
     if (isExpress) {
       // Modo Express (req,res)
       id = firstArg.body?.params?.id;
+      reason = firstArg.body?.params?.reason ?? null;
+      user = firstArg.user || null;
     } else {
       // Modo servicio (data, user)
       id = firstArg?.id;
+      reason = firstArg?.reason ?? null;
+      user = secondArg || null;
     }
 
     if (!id) {
       throw new Error('ID de planta requerido');
     }
 
-    const [existing] = await db.query('SELECT id, scientific_name FROM plants WHERE id = ?', [id]);
+    const [existing] = await db.query('SELECT id, scientific_name, status FROM plants WHERE id = ?', [id]);
     if (existing.length === 0) {
       if (isExpress) {
         return secondArg.status(404).json({ success: false, error: 'Planta no encontrada' });
@@ -789,18 +796,24 @@ const deletePlant = async (firstArg, secondArg) => {
       throw new Error('Planta no encontrada');
     }
 
-    // Hard delete: eliminar imágenes y luego el registro
-    await db.query('DELETE FROM plant_images WHERE plant_id = ?', [id]);
-    await db.query('DELETE FROM plants WHERE id = ?', [id]);
+    // Soft delete: cambio de estado + metadatos de trazabilidad (las imágenes se conservan)
+    await db.query(
+      `UPDATE plants
+         SET status = 'deleted',
+             deleted_at = NOW(),
+             deleted_by = ?,
+             deletion_reason = ?
+       WHERE id = ?`,
+      [user?.id ?? null, reason, id]
+    );
 
-    logger.info(`Planta eliminada permanentemente: ID ${id} - ${existing[0].scientific_name}`);
+    logger.info(`Planta archivada (soft delete): ID ${id} - ${existing[0].scientific_name} por usuario ID ${user?.id ?? '—'}${reason ? ` · motivo: ${reason}` : ''}`);
 
-    const result = { id, message: 'Planta eliminada exitosamente' };
+    const result = { id, status: 'deleted', message: 'Espécimen archivado. El registro se conserva y puede restaurarse.' };
 
     if (isExpress) {
       return secondArg.json({ success: true, data: result });
     }
-    // En modo servicio devolvemos solo el objeto; serviceController lo envolverá
     return result;
 
   } catch (error) {
@@ -808,13 +821,47 @@ const deletePlant = async (firstArg, secondArg) => {
     if (isExpress) {
       return secondArg.status(500).json({
         success: false,
-        error: 'Error al eliminar planta',
+        error: 'Error al archivar planta',
         message: error.message
       });
     }
-    // En modo servicio relanzamos para que serviceController maneje el status
     throw error;
   }
+};
+
+// ── BULK SOFT DELETE ─────────────────────────────────────────────────────────
+const bulkDeletePlants = async (data, user) => {
+  const ids = Array.isArray(data?.ids) ? data.ids.filter(Boolean) : (data?.id ? [data.id] : []);
+  const reason = data?.reason ?? null;
+  if (ids.length === 0) throw new Error('Se requiere al menos un ID');
+
+  const [res] = await db.query(
+    `UPDATE plants
+       SET status = 'deleted', deleted_at = NOW(), deleted_by = ?, deletion_reason = ?
+     WHERE id IN (?) AND status != 'deleted'`,
+    [user?.id ?? null, reason, ids]
+  );
+  logger.info(`Soft delete masivo: ${res.affectedRows} registro(s) archivados por usuario ID ${user?.id ?? '—'}`);
+  return { archived: res.affectedRows, message: `${res.affectedRows} espécimen(es) archivado(s).` };
+};
+
+// ── RESTAURAR desde la papelera ──────────────────────────────────────────────
+const restorePlant = async (data, user) => {
+  const id = data?.id;
+  if (!id) throw new Error('ID de planta requerido');
+
+  const [existing] = await db.query('SELECT id, scientific_name, status FROM plants WHERE id = ?', [id]);
+  if (existing.length === 0) throw new Error('Planta no encontrada');
+  if (existing[0].status !== 'deleted') throw new Error('El espécimen no está archivado');
+
+  await db.query(
+    `UPDATE plants
+       SET status = 'draft', deleted_at = NULL, deleted_by = NULL, deletion_reason = NULL
+     WHERE id = ?`,
+    [id]
+  );
+  logger.info(`Planta restaurada: ID ${id} - ${existing[0].scientific_name} por usuario ID ${user?.id ?? '—'}`);
+  return { id, status: 'draft', message: 'Espécimen restaurado a borrador.' };
 };
 
 // ===============================
@@ -1195,6 +1242,7 @@ module.exports = {
   create,
   update,
   delete: deletePlant,
+  restore: restorePlant,
   purgeDeleted,
   importData,
   getFeaturedPlants,
@@ -1204,8 +1252,8 @@ module.exports = {
   getCollectors,
   advancedSearch,
   getStats,
+  bulkDelete: bulkDeletePlants,
   // Aliases para compatibilidad
-  bulkDelete: deletePlant,
   search: advancedSearch,
   searchByFamily: advancedSearch,
   searchByGenus: advancedSearch,

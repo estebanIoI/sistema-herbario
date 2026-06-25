@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge"
 import PlantCard from "@/components/plant-card"
 import AdvancedFilters from "@/components/advanced-filters"
 import PlantMap from "@/components/map/PlantMap"
+import { useAuth } from "@/lib/auth-context"
+import { can, type Role } from "@/lib/permissions"
 import type { PlantMapData } from "@/components/map/map-constants"
 import { apiService } from "@/lib/api"
 
@@ -61,6 +63,8 @@ interface PaginationData {
 
 export default function PlantasPage() {
   const router = useRouter()
+  const { user } = useAuth()
+  const canExport = can((user?.role ?? "user") as Role, "exportData")
   // Ref para persistir la familia del URL fuera de closures asíncronos
   const familyFromUrl = useRef<string>("")
   const [searchTerm, setSearchTerm] = useState("")
@@ -467,8 +471,8 @@ export default function PlantasPage() {
           </Button>
         </div>
 
-        {/* Botón exportar — visible solo cuando hay filtros y resultados */}
-        {hasActiveFilters && (plantas.length > 0 || mapPlants.length > 0) && (
+        {/* Botón exportar — solo Investigador/Admin (matriz de roles) y con resultados */}
+        {canExport && hasActiveFilters && (plantas.length > 0 || mapPlants.length > 0) && (
           <Button
             variant="outline"
             size="sm"

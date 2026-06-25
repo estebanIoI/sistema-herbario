@@ -164,8 +164,10 @@ services:
       - "traefik.http.routers.herbario-api.middlewares=herbario-cors@docker"
       # Middleware CORS — permite preflight OPTIONS desde el frontend
       - "traefik.http.middlewares.herbario-cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS,PATCH"
-      - "traefik.http.middlewares.herbario-cors.headers.accesscontrolallowheaders=Content-Type,Authorization,X-Requested-With"
+      - "traefik.http.middlewares.herbario-cors.headers.accesscontrolallowheaders=Content-Type,Authorization,X-Requested-With,Accept"
       - "traefik.http.middlewares.herbario-cors.headers.accesscontrolalloworiginlist=${FRONTEND_URL}"
+      # Obligatoria cuando el frontend usa credentials:'include' — sin esto el navegador rechaza el preflight
+      - "traefik.http.middlewares.herbario-cors.headers.accesscontrolallowcredentials=true"
       - "traefik.http.middlewares.herbario-cors.headers.accesscontrolmaxage=86400"
       - "traefik.http.middlewares.herbario-cors.headers.addvaryheader=true"
       # Redirección HTTP → HTTPS

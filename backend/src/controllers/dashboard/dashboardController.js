@@ -2,6 +2,7 @@
 const os = require('os');
 const db = require('../../config/database');
 const logger = require('../../utils/logger');
+const cache = require('../../services/cache');
 
 const formatBytes = (bytes) => {
   if (!bytes || bytes === 0) return '0 B';
@@ -477,12 +478,17 @@ const getPublicStats = async (req, res) => {
  */
 const getPublicStatsData = async (data, user) => {
   try {
+    // Caché (Redis con fallback a memoria) — estadísticas públicas, TTL 2 min
+    const cacheKey = 'stats:public';
+    const cached = await cache.get(cacheKey);
+    if (cached) return cached;
+
     const [totalPlants]   = await db.query('SELECT COUNT(*) as total FROM plants WHERE status = "published"');
     const [totalFamilies] = await db.query('SELECT COUNT(DISTINCT family) as total FROM plants WHERE status = "published"');
     const [totalGenera]   = await db.query('SELECT COUNT(DISTINCT genus) as total FROM plants WHERE status = "published"');
     const [totalSpecies]  = await db.query('SELECT COUNT(DISTINCT scientific_name) as total FROM plants WHERE status = "published"');
 
-    return {
+    const result = {
       totalPlants:   totalPlants[0].total,
       totalFamilies: totalFamilies[0].total,
       totalGenera:   totalGenera[0].total,
@@ -490,6 +496,9 @@ const getPublicStatsData = async (data, user) => {
       institution: 'Instituto Tecnológico del Putumayo',
       lastUpdate: new Date().toISOString()
     };
+
+    await cache.set(cacheKey, result, 120);
+    return result;
 
   } catch (error) {
     logger.error('Error en getPublicStatsData:', error);

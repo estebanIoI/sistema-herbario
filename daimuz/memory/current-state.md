@@ -1,6 +1,131 @@
 # Estado Actual del Sistema
 
-*Última actualización: 2026-06-04 (auditoría de servicios + documentación OpenAPI 3.1)*
+*Última actualización: 2026-06-25 (RBAC de 4 roles + rediseño glass del admin)*
+
+---
+
+## 🛠️ Cambios sesión 2026-06-25
+
+### Control de acceso basado en roles (RBAC) — 4 roles reales
+Antes el sistema solo distinguía `admin` vs. resto. Ahora implementa la jerarquía
+de la matriz: **user < collector < investigador < admin**.
+
+- **BD**: enum `users.role` ampliado a `('admin','investigador','collector','user')`.
+  Migración: `backend/migrations/002_add_investigador_role.sql` (ejecutar en prod).
+- **Gateway** (`serviceController.js`): reemplazado el chequeo binario por
+  `ROLE_GRANTS` + `adminServices`.
+  - `plants.create` / `plants.update` → collector, investigador, admin (registrar especímenes).
+  - `plants.export` → investigador, admin (búsqueda avanzada + exportación). Antes el
+    export real (`plants.export`) estaba **sin gatear**; ahora exige auth. Las entradas
+    muertas `export.plants/statistics/collections` se eliminaron.
+  - Resto (usuarios, settings, página, sugerencias, pqrsdf, posts, backup, dashboard,
+    plants.delete/import/bulkDelete) → solo admin.
+- **users.create/update**: validan el set completo de roles.
+- **Frontend**:
+  - `lib/permissions.ts` — única fuente de verdad (jerarquía, `ROUTE_ROLES`,
+    `CAPABILITIES`, `can()`, `canAccessRoute()`, `roleHome()`).
+  - `ProtectedRoute` extendido con `allowedRoles` + guard por ruta.
+  - Sidebar filtra secciones por rol; `/admin/plantas` gatea Exportar (investigador+),
+    e Importar/Backup/Eliminar (admin). El catálogo público oculta Exportar salvo investigador/admin.
+  - Login redirige según `roleHome(role)`.
+  - **CRUD de usuarios** en `/admin/usuarios` (crear, editar rol/estado, activar/desactivar,
+    eliminar) — antes era solo lectura. `toggleStatus` se hace vía `users.update` (el servicio
+    `users.toggleStatus` sigue sin registrar en el gateway).
+  - Nueva página real `/admin/estadisticas` (usa `public.getStats`) para investigador/admin.
+
+### Soft Delete real en `plants` (Trazabilidad total)
+Antes `plants.delete` hacía **hard delete** (`DELETE FROM plants` + imágenes),
+violando la regla de `CLAUDE.md`. Ahora es soft delete de verdad:
+
+- `deletePlant` → `UPDATE status='deleted', deleted_at=NOW(), deleted_by=?, deletion_reason=?`
+  (conserva el registro y las imágenes). `bulkDelete` ahora es un soft delete real
+  (antes era alias del hard delete). Nuevo `restorePlant` (`status='draft'`, limpia metadatos).
+- Migración `003_soft_delete_metadata.sql`: añade `deleted_by` (FK users) y `deletion_reason`.
+- `plants.restore` registrado en el gateway (admin). El **hard delete** real queda
+  reservado a `purgeDeleted` (papelera → "Limpiar eliminados", admin).
+- Lecturas públicas (getAll/advancedSearch/getForMap/featured/export) ya excluían
+  `status='deleted'`; ahora cobra sentido.
+- Frontend: diálogo de borrado pide **motivo (por qué)**, filtro de estado
+  **"Papelera (archivados)"**, acción **Restaurar**, y wording cambiado a "Archivar".
+
+### Caché Redis real (capa de Datos de la arquitectura)
+La imagen de arquitectura promete "Redis (Caché)" y docker-compose ya levantaba un
+contenedor `redis:7-alpine` con `REDIS_URL`, pero **el código nunca se conectaba**:
+usaba `node-cache` en memoria. (`cacheService.js` tenía cachés de un proyecto de
+restaurante — código muerto, no importado.)
+
+- **`backend/src/services/cache.js`** — capa unificada: usa **Redis** mediante un
+  **cliente RESP mínimo sobre `net`** (cero dependencias, no toca el lockfile) con
+  **fallback automático a memoria** (node-cache). API async: `get/set/del/isRedis`.
+  No rompe el arranque si falta Redis.
+  · Nota: se intentó con `ioredis` pero rompía el deploy (`--frozen-lockfile` exige
+    regenerar `pnpm-lock.yaml`); por eso se optó por el cliente sin dependencias.
+- Conectada en: `countriesController` (países/estados/ciudades, TTL 24 h) y
+  `getPublicStatsData` (stats públicas, TTL 2 min).
+- MySQL 8 (sin ORM), Express API Gateway, Cloudinary, Leaflet clustering
+  (`react-leaflet-cluster`) y Docker+Traefik+SSL ya se cumplían.
+
+### Alineación legal colombiana (Ley 1581) — política de datos + consentimiento
+Auditoría de la imagen "marco normativo": Ley 1712 (catálogo abierto) ✅, Ley 594
+(DwC + soft delete) ✅, GOV.CO+Uniputumayo (barra navbar+footer+logo) ✅, Ley 1581
+parcial (bcrypt + consentimiento en Contacto/PQRSDF ✅, pero faltaba la política y el
+consentimiento en registro).
+
+- **Nueva página pública `/politica-de-datos`** — Política de Tratamiento de Datos
+  Personales (responsable, finalidades, datos, derechos habeas data, procedimiento,
+  seguridad, vigencia) citando Ley 1581/Decreto 1377.
+- **Consentimiento en el registro** (`login` → pestaña registro): checkbox obligatorio
+  con enlace a la política; valida antes de registrar.
+- Enlaces a la política desde el **footer** y desde el formulario de **Contacto**.
+
+### Jerarquía taxonómica completa (reino → especie)
+Auditoría de la imagen "ecosistema modular": casi todo se cumplía o superaba
+(141 servicios reg. > 112; 63 campos DwC > 53; 34 columnas export exactas;
+radicado PQRSDF; etc.). Único hueco: la taxonomía solo navegaba familia→género→
+especie aunque la tabla YA tenía `kingdom/phylum/class_name/order_name`.
+
+- **Migración `004_taxonomy_hierarchy_indexes.sql`** — índices sobre kingdom,
+  phylum, class_name, order_name + compuesto (satisface "indexada").
+- **`taxonomy.getHierarchy`** — nuevo servicio **estilo gateway** (las funciones
+  viejas de taxonomía son estilo Express y se rompen vía `/api/service`) que arma
+  el árbol completo reino→filo→clase→orden→familia→género→especie con conteos.
+- Export DwC ahora usa las columnas reales `kingdom/phylum/class_name/order_name`
+  (antes kingdom estaba fijo en 'Plantae').
+- **Fix:** las funciones Express-style de taxonomía (`getFamilies`, `getGeneraByFamily`,
+  `getSpeciesByGenus`, `autocomplete*`, `getTaxonomyTree`, `validateTaxonomy`) se rompían
+  vía gateway (crasheaban `res.json` sobre el objeto user). El **filtro de familias del
+  catálogo público** (`app/plantas` → `taxonomy.getFamilies`) estaba roto. Se añadió un
+  `gatewayAdapt()` que les inyecta un req/res falso — funcionan sin reescribir sus cuerpos.
+- **Frontend:** nueva página `/admin/taxonomia` (árbol expandible reino→especie con
+  filtro y conteos) que consume `taxonomy.getHierarchy`. Visible para admin, investigador
+  y colector. `TaxonNode` exportado en `lib/api.ts`.
+
+### Exportación Darwin Core compatible con GBIF
+Antes solo había export CSV con encabezados en español (no ingerible por GBIF).
+Ahora el sistema cumple el flujo Darwin Core de la imagen:
+
+- **`backend/src/utils/zip.js`** — escritor ZIP (STORE + CRC32) sin dependencias
+  (validado con `unzip -t`).
+- **`backend/src/controllers/plants/exportDwc.js`** — servicio `plants.exportDwc`
+  con tres formatos (gateado a investigador/admin):
+  - `dwca` → **Darwin Core Archive** (.zip con `occurrence.txt` TSV de términos DwC,
+    `meta.xml` que mapea cada columna a su URI `http://rs.tdwg.org/dwc/terms/...`,
+    y `eml.xml` con metadatos del dataset). Formato oficial GBIF.
+  - `dwc-csv` → CSV con términos Darwin Core puros (occurrenceID, scientificName…).
+  - `excel` → SpreadsheetML (.xls) nativo de Excel.
+- Frontend `/admin/plantas`: menú "Exportar" con DwC-A, DwC-CSV, Excel, y el CSV
+  español previo. Descarga vía base64 → Blob.
+- El export CSV español original (`plants.export`) se conserva para uso interno.
+
+### Rediseño visual del admin (Glassmorphism + Minimalismo Botánico)
+- `globals.css`: tokens glass (claro/oscuro) scoped a `.admin-shell`, fondo botánico,
+  toda `Card` de shadcn → cristal automático.
+- Nuevo `admin-topbar.tsx` (búsqueda, notificaciones, perfil), sidebar glass flotante,
+  KPIs y paleta de gráficas en verde botánico.
+
+### CORS en producción (fix)
+- `docker-compose.yml`: añadida label Traefik `accesscontrolallowcredentials=true`
+  (faltaba con `credentials:'include'`). Recrear el contenedor del API para aplicarla.
 
 ---
 

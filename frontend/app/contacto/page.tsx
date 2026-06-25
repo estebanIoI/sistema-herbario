@@ -563,7 +563,10 @@ export default function ContactoPage() {
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     De conformidad con la <strong>Ley 1581 de 2012</strong> y el <strong>Decreto 1377 de 2013</strong>,
                     autorizo expresa e irrevocablemente el tratamiento de la información y datos personales suministrados
-                    en el presente formulario, conforme a la Política de Protección y Tratamiento de Datos Personales
+                    en el presente formulario, conforme a la{" "}
+                    <a href="/politica-de-datos" target="_blank" rel="noreferrer" className="font-semibold text-green-700 hover:underline">
+                      Política de Protección y Tratamiento de Datos Personales
+                    </a>{" "}
                     del Herbario HEAA.
                   </p>
                   <div className="flex items-start gap-3">

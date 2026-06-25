@@ -7,7 +7,7 @@ import { apiService, User, AuthResponse } from './api';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string; user?: User }>;
   register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   isAuthenticated: boolean;
@@ -45,11 +45,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, password: string) => {
     try {
       const response = await apiService.login({ email, password });
-      
+
       if (response.success && response.data) {
         setUser(response.data.user);
         apiService.setToken(response.data.token);
-        return { success: true };
+        return { success: true, user: response.data.user };
       } else {
         return { 
           success: false, 

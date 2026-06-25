@@ -24,7 +24,7 @@ interface User {
   id: number;
   name: string;
   email: string;
-  role: 'admin' | 'user' | 'collector';
+  role: 'admin' | 'investigador' | 'collector' | 'user';
   status: 'active' | 'inactive' | 'pending';
 }
 
@@ -32,6 +32,13 @@ interface AuthResponse {
   user: User;
   token: string;
   refreshToken?: string;
+}
+
+export interface TaxonNode {
+  name: string;
+  type: 'kingdom' | 'phylum' | 'class' | 'order' | 'family' | 'genus' | 'species';
+  plantCount: number;
+  children?: TaxonNode[];
 }
 
 class ApiService {
@@ -427,10 +434,19 @@ class ApiService {
     });
   }
 
-  // Eliminar planta (admin)
-  async deletePlant(id: number): Promise<ApiResponse<any>> {
+  // Archivar planta (soft delete, admin) — conserva el registro con motivo
+  async deletePlant(id: number, reason?: string): Promise<ApiResponse<any>> {
     const token = this.getToken();
     return this.fetchApi('plants.delete', {
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ id, reason: reason || null })
+    });
+  }
+
+  // Restaurar planta archivada (admin)
+  async restorePlant(id: number): Promise<ApiResponse<any>> {
+    const token = this.getToken();
+    return this.fetchApi('plants.restore', {
       headers: { 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ id })
     });
@@ -551,6 +567,49 @@ class ApiService {
     return this.fetchApi('plants.export', { body: JSON.stringify(filters ?? {}) });
   }
 
+  // Exportación Darwin Core compatible con GBIF (DwC-A / CSV-DwC / Excel)
+  // Devuelve el archivo en base64 para descargar en el cliente.
+  async exportDwc(
+    format: 'dwca' | 'dwc-csv' | 'excel',
+    filters?: Record<string, string | undefined>
+  ): Promise<ApiResponse<{ base64: string; filename: string; mimeType: string; count: number; format: string }>> {
+    return this.fetchApi('plants.exportDwc', {
+      body: JSON.stringify({ ...(filters ?? {}), format })
+    });
+  }
+
+  // ===============================
+  // USUARIOS (gestión admin)
+  // ===============================
+  async getUsers(params?: {
+    page?: number; limit?: number; search?: string;
+    role?: string; status?: string; sortBy?: string; sortDir?: string;
+  }): Promise<ApiResponse<any>> {
+    return this.fetchApi('users.getAll', { body: JSON.stringify(params ?? {}) });
+  }
+
+  async createUser(data: {
+    name: string; email: string; password: string;
+    role?: string; phone?: string;
+  }): Promise<ApiResponse<any>> {
+    return this.fetchApi('users.create', { body: JSON.stringify(data) });
+  }
+
+  async updateUser(data: {
+    id: number; name?: string; email?: string; role?: string;
+    status?: string; phone?: string; password?: string;
+  }): Promise<ApiResponse<any>> {
+    return this.fetchApi('users.update', { body: JSON.stringify(data) });
+  }
+
+  async toggleUserStatus(id: number): Promise<ApiResponse<any>> {
+    return this.fetchApi('users.toggleStatus', { body: JSON.stringify({ id }) });
+  }
+
+  async deleteUser(id: number): Promise<ApiResponse<any>> {
+    return this.fetchApi('users.delete', { body: JSON.stringify({ id }) });
+  }
+
   // Buscador de colectores (usuarios BD + recorded_by existentes)
   async getCollectors(q: string): Promise<ApiResponse<{ collectors: string[] }>> {
     return this.fetchApi('plants.getCollectors', { body: JSON.stringify({ q }) });
@@ -578,6 +637,15 @@ class ApiService {
     total: number;
   }>> {
     return this.fetchApi('taxonomy.getFamilies');
+  }
+
+  // Jerarquía taxonómica completa (reino → especie)
+  async getTaxonomyHierarchy(): Promise<ApiResponse<{
+    levels: string[]
+    totalTaxa: number
+    tree: TaxonNode[]
+  }>> {
+    return this.fetchApi('taxonomy.getHierarchy');
   }
 
   // Obtener géneros por familia

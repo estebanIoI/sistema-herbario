@@ -52,6 +52,8 @@ const services = {
   'plants.update': plantsController.update,
   'plants.delete': plantsController.delete,
   'plants.bulkDelete': plantsController.bulkDelete,
+  'plants.restore': plantsController.restore,
+  'plants.exportDwc': require('../controllers/plants/exportDwc').exportDwc,
   
   // Búsqueda y filtrado avanzado
   'plants.search': plantsController.search,
@@ -95,6 +97,7 @@ const services = {
   'taxonomy.deleteTaxonomy': taxonomyController.deleteTaxonomy,
   'taxonomy.validateTaxonomy': taxonomyController.validateTaxonomy,
   'taxonomy.getTaxonomyTree': taxonomyController.getTaxonomyTree,
+  'taxonomy.getHierarchy': taxonomyController.getHierarchy,
 
   // ===============================
   // SERVICIOS DE UBICACIONES
