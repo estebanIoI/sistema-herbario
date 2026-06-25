@@ -48,6 +48,21 @@ violando la regla de `CLAUDE.md`. Ahora es soft delete de verdad:
 - Frontend: diálogo de borrado pide **motivo (por qué)**, filtro de estado
   **"Papelera (archivados)"**, acción **Restaurar**, y wording cambiado a "Archivar".
 
+### Caché Redis real (capa de Datos de la arquitectura)
+La imagen de arquitectura promete "Redis (Caché)" y docker-compose ya levantaba un
+contenedor `redis:7-alpine` con `REDIS_URL`, pero **el código nunca se conectaba**:
+usaba `node-cache` en memoria. (`cacheService.js` tenía cachés de un proyecto de
+restaurante — código muerto, no importado.)
+
+- **`backend/src/services/cache.js`** — capa unificada: usa **Redis** (`ioredis`,
+  `REDIS_URL`) con **fallback automático a memoria** (node-cache) si Redis no está
+  disponible. API async: `get/set/del/isRedis`. No rompe el arranque si falta Redis.
+- `ioredis` añadido a `backend/package.json`.
+- Conectada en: `countriesController` (países/estados/ciudades, TTL 24 h) y
+  `getPublicStatsData` (stats públicas, TTL 2 min).
+- MySQL 8 (sin ORM), Express API Gateway, Cloudinary, Leaflet clustering
+  (`react-leaflet-cluster`) y Docker+Traefik+SSL ya se cumplían.
+
 ### Exportación Darwin Core compatible con GBIF
 Antes solo había export CSV con encabezados en español (no ingerible por GBIF).
 Ahora el sistema cumple el flujo Darwin Core de la imagen:
