@@ -538,15 +538,32 @@ export default function AdminPlantas() {
     } finally { setExporting(false) }
   }
 
-  // ── Conservation status badge ──────────────────────────────────────────────
+  // ── Conservation status (códigos IUCN del ENUM de MySQL) ────────────────────
+  const IUCN: Record<string, { label: string; cls: string }> = {
+    NE: { label: 'No evaluada',                 cls: 'bg-gray-100 text-gray-700 border-gray-200' },
+    DD: { label: 'Datos insuficientes',         cls: 'bg-gray-100 text-gray-700 border-gray-200' },
+    LC: { label: 'Preocupación menor',          cls: 'bg-green-100 text-green-700 border-green-200' },
+    NT: { label: 'Casi amenazada',              cls: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+    VU: { label: 'Vulnerable',                  cls: 'bg-amber-100 text-amber-700 border-amber-200' },
+    EN: { label: 'En peligro',                  cls: 'bg-orange-100 text-orange-700 border-orange-200' },
+    CR: { label: 'En peligro crítico',          cls: 'bg-red-100 text-red-700 border-red-200' },
+    EW: { label: 'Extinta en estado silvestre', cls: 'bg-gray-200 text-gray-700 border-gray-300' },
+    EX: { label: 'Extinta',                     cls: 'bg-gray-200 text-gray-700 border-gray-300' },
+  }
+  const conservationLabel = (cs?: string) => {
+    if (!cs) return ''
+    return IUCN[cs]?.label ?? cs // códigos → etiqueta; texto legado se muestra tal cual
+  }
   const conservationCls = (cs?: string) => {
     if (!cs) return null
-    if (cs.includes('crítico'))  return 'bg-red-100 text-red-700 border-red-200'
-    if (cs.includes('peligro'))  return 'bg-orange-100 text-orange-700 border-orange-200'
-    if (cs === 'Vulnerable')     return 'bg-amber-100 text-amber-700 border-amber-200'
-    if (cs.includes('amenazada'))return 'bg-yellow-100 text-yellow-700 border-yellow-200'
-    if (cs.includes('menor'))    return 'bg-green-100 text-green-700 border-green-200'
-    if (cs.includes('Extinta'))  return 'bg-gray-200 text-gray-700 border-gray-300'
+    if (IUCN[cs]) return IUCN[cs].cls
+    // Fallback para datos legados con texto en español
+    if (cs.includes('crítico'))   return 'bg-red-100 text-red-700 border-red-200'
+    if (cs.includes('peligro'))   return 'bg-orange-100 text-orange-700 border-orange-200'
+    if (cs === 'Vulnerable')      return 'bg-amber-100 text-amber-700 border-amber-200'
+    if (cs.includes('amenazada')) return 'bg-yellow-100 text-yellow-700 border-yellow-200'
+    if (cs.includes('menor'))     return 'bg-green-100 text-green-700 border-green-200'
+    if (cs.includes('Extinta'))   return 'bg-gray-200 text-gray-700 border-gray-300'
     return null
   }
 
@@ -652,7 +669,7 @@ export default function AdminPlantas() {
             }
             {cls && p.conservation_status && (
               <span className={`inline-block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded border ${cls}`}>
-                {p.conservation_status}
+                {conservationLabel(p.conservation_status)}
               </span>
             )}
           </div>
@@ -1369,7 +1386,7 @@ export default function AdminPlantas() {
                       <div className="col-span-2"><Separator /></div>
                       <Field label="Usos" value={selectedPlant.uses} wide />
                       <Field label="Instrucciones de cuidado" value={selectedPlant.care_instructions} wide />
-                      <Field label="Estado de conservación" value={selectedPlant.conservation_status} />
+                      <Field label="Estado de conservación" value={conservationLabel(selectedPlant.conservation_status)} />
                       <div className="col-span-2"><Separator /></div>
                       <Field label="Observaciones" value={selectedPlant.observations} wide />
                       <Field label="Notas" value={selectedPlant.notes} wide />

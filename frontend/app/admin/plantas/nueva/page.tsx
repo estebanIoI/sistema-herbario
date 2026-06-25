@@ -1182,7 +1182,7 @@ export default function NuevaPlantaPage() {
       // Uso y conservación
       uses: formData.uses || null,
       care_instructions: null,
-      conservation_status: formData.conservation_status || 'No evaluada',
+      conservation_status: formData.conservation_status || 'NE',
       // Sistema
       status: 'draft',
       featured: false,
@@ -2227,15 +2227,15 @@ export default function NuevaPlantaPage() {
                         <SelectValue placeholder="Selecciona un estado" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="No evaluada">No evaluada</SelectItem>
-                        <SelectItem value="Datos insuficientes">Datos insuficientes</SelectItem>
-                        <SelectItem value="Preocupación menor">Preocupación menor</SelectItem>
-                        <SelectItem value="Casi amenazada">Casi amenazada</SelectItem>
-                        <SelectItem value="Vulnerable">Vulnerable</SelectItem>
-                        <SelectItem value="En peligro">En peligro</SelectItem>
-                        <SelectItem value="En peligro crítico">En peligro crítico</SelectItem>
-                        <SelectItem value="Extinta en estado silvestre">Extinta en estado silvestre</SelectItem>
-                        <SelectItem value="Extinta">Extinta</SelectItem>
+                        <SelectItem value="NE">No evaluada (NE)</SelectItem>
+                        <SelectItem value="DD">Datos insuficientes (DD)</SelectItem>
+                        <SelectItem value="LC">Preocupación menor (LC)</SelectItem>
+                        <SelectItem value="NT">Casi amenazada (NT)</SelectItem>
+                        <SelectItem value="VU">Vulnerable (VU)</SelectItem>
+                        <SelectItem value="EN">En peligro (EN)</SelectItem>
+                        <SelectItem value="CR">En peligro crítico (CR)</SelectItem>
+                        <SelectItem value="EW">Extinta en estado silvestre (EW)</SelectItem>
+                        <SelectItem value="EX">Extinta (EX)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

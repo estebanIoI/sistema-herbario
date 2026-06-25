@@ -65,6 +65,19 @@ restaurante — código muerto, no importado.)
 - MySQL 8 (sin ORM), Express API Gateway, Cloudinary, Leaflet clustering
   (`react-leaflet-cluster`) y Docker+Traefik+SSL ya se cumplían.
 
+### Alineación legal colombiana (Ley 1581) — política de datos + consentimiento
+Auditoría de la imagen "marco normativo": Ley 1712 (catálogo abierto) ✅, Ley 594
+(DwC + soft delete) ✅, GOV.CO+Uniputumayo (barra navbar+footer+logo) ✅, Ley 1581
+parcial (bcrypt + consentimiento en Contacto/PQRSDF ✅, pero faltaba la política y el
+consentimiento en registro).
+
+- **Nueva página pública `/politica-de-datos`** — Política de Tratamiento de Datos
+  Personales (responsable, finalidades, datos, derechos habeas data, procedimiento,
+  seguridad, vigencia) citando Ley 1581/Decreto 1377.
+- **Consentimiento en el registro** (`login` → pestaña registro): checkbox obligatorio
+  con enlace a la política; valida antes de registrar.
+- Enlaces a la política desde el **footer** y desde el formulario de **Contacto**.
+
 ### Jerarquía taxonómica completa (reino → especie)
 Auditoría de la imagen "ecosistema modular": casi todo se cumplía o superaba
 (141 servicios reg. > 112; 63 campos DwC > 53; 34 columnas export exactas;

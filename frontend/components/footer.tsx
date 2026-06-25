@@ -126,6 +126,11 @@ export default function Footer() {
           <div className="text-center md:text-left text-sm text-white/75 space-y-1">
             {legalInfo && <p className="whitespace-pre-line">{legalInfo}</p>}
             <p>© {new Date().getFullYear()} {copyright}</p>
+            <p>
+              <Link href="/politica-de-datos" className="underline hover:text-white transition-colors">
+                Política de Tratamiento de Datos Personales (Ley 1581 de 2012)
+              </Link>
+            </p>
           </div>
           <a
             href={govbarUrl}

@@ -32,6 +32,7 @@ export default function LoginPage() {
     password: "",
     confirmPassword: "",
   })
+  const [acceptedData, setAcceptedData] = useState(false)
 
   const bgImage = settings.login_bg_image || DEFAULT_BG
   const attribution = settings.login_bg_attribution || "IERNA SINCHI"
@@ -60,6 +61,11 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError("")
+    if (!acceptedData) {
+      setError("Debes autorizar el tratamiento de datos personales (Ley 1581 de 2012) para registrarte")
+      setLoading(false)
+      return
+    }
     if (registerData.password !== registerData.confirmPassword) {
       setError("Las contraseñas no coinciden")
       setLoading(false)
@@ -312,6 +318,23 @@ export default function LoginPage() {
                   />
                 </div>
               </div>
+
+              {/* Autorización de tratamiento de datos — Ley 1581 de 2012 */}
+              <label className="flex items-start gap-2.5 text-xs text-gray-600 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={acceptedData}
+                  onChange={(e) => setAcceptedData(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-green-600 focus:ring-green-500/30"
+                />
+                <span>
+                  Autorizo el tratamiento de mis datos personales conforme a la{" "}
+                  <Link href="/politica-de-datos" target="_blank" className="font-semibold text-green-700 hover:underline">
+                    Política de Tratamiento de Datos Personales
+                  </Link>{" "}
+                  (Ley 1581 de 2012 y Decreto 1377 de 2013).
+                </span>
+              </label>
 
               {error && (
                 <div className="flex items-start gap-2.5 text-red-600 bg-red-50 border border-red-100 rounded-lg px-3.5 py-3 text-sm">
